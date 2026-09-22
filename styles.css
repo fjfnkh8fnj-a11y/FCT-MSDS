@@ -32,3 +32,9 @@ body.mode-pc{min-width:0;overflow-x:auto}body.mode-pc .shell{min-width:980px}
 
 @media(max-width:760px){.brand{width:166px;height:42px;flex-basis:166px;padding:3px 0}.brand-copy{display:none}}
 .browse-tools{grid-template-columns:minmax(220px,1fr)}
+
+/* VER8 status dashboard and help */
+.stats button{background:#fff;border:1px solid var(--line);border-top:4px solid var(--navy);padding:14px;text-align:left}.stats button:nth-child(4n+2){border-top-color:var(--blue)}.stats button:nth-child(4n+3){border-top-color:var(--green)}.stats button:nth-child(4n+4){border-top-color:var(--yellow)}.stats button:hover,.stats button.active{background:#eef5ff;border-color:var(--blue)}
+.status-results{padding:14px;border-bottom:1px solid var(--line);background:#f8fafc}.status-head{display:flex;justify-content:space-between;gap:10px;margin-bottom:10px}.status-head span{color:var(--muted);font-size:.8rem}.status-list{display:grid;gap:8px}.status-list article{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px;background:#fff;border:1px solid var(--line)}.status-badge{display:inline-flex;padding:7px 9px;border-radius:6px;font-size:.75rem;font-weight:800}.status-badge.waiting{background:#fff5d6;color:#795500}.pdf-icon.empty-pdf{background:#f1f3f6;color:#7b8798;border-color:#d7dde6}.help-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}.help-grid ol{margin:0;padding-left:21px;color:#4f5c72;font-size:.85rem;line-height:1.8}.version-note{margin-top:18px!important;padding-top:10px;border-top:1px solid var(--line);font-size:.72rem!important}.card-box h3 small{color:var(--muted);font-size:.72rem;font-weight:700}
+@media(max-width:760px){.help-grid{grid-template-columns:1fr}.status-list article{align-items:flex-start;flex-direction:column}.status-list article .btn{width:100%}}
+@media(max-width:760px){.bottom-nav.admin-mode,body.mode-mobile .bottom-nav.admin-mode{grid-template-columns:repeat(5,1fr)}}
