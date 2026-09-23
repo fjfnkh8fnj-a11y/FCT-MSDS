@@ -1,121 +1,533 @@
 <!doctype html>
 <html lang="ko">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#0c1935">
-  <meta name="description" content="FCT 공장·부서·설비·공정별 MSDS 통합 열람 및 관리">
-  <title>FCT MSDS 안전관리</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%230c1935'/%3E%3Cpath d='M12 12h40v10H23v8h24v10H23v12H12z' fill='%23ffb300'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="./styles.css">
-</head>
-<body>
-  <header class="topbar">
-    <button class="brand" id="homeLogo" type="button" aria-label="전체 MSDS 첫 화면으로"><img src="./fct-logo-transparent.png" alt="FCT 주식회사 화인세라텍"></button>
-    <div class="brand-copy"><h1>MSDS 안전관리</h1></div>
-    <div class="top-actions"><div class="view-switch" aria-label="화면 모드"><button id="pcModeBtn" type="button">PC</button><button id="mobileModeBtn" type="button">모바일</button></div><span class="mode-badge" id="modeBadge">연결 확인 중</span><button class="btn btn-outline admin-entry" id="adminEntryBtn" type="button">관리자 로그인</button><button class="btn btn-outline hidden" id="logoutBtn" type="button">로그아웃</button></div>
-  </header>
-
-  <div class="shell">
-    <aside class="sidebar">
-      <p class="side-label">MSDS 열람</p>
-      <nav class="nav" aria-label="메뉴">
-        <button class="active" type="button" data-view="browse"><span>▤</span>전체 MSDS</button>
-        <button type="button" data-view="help"><span>?</span>사용방법</button>
-        <div class="admin-nav hidden" id="adminNav">
-          <p class="side-label sub-label">관리자</p>
-          <button type="button" data-view="upload"><span>＋</span>사용물질 등록</button>
-          <button type="button" data-view="manage"><span>⚙</span>구조 관리</button>
-          <button type="button" data-view="data"><span>⇄</span>엑셀 관리</button>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0c1935" />
+    <meta
+      name="description"
+      content="FCT 공장·부서·설비별 MSDS 통합 열람 및 관리"
+    />
+    <title>FCT MSDS 안전관리</title>
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%230c1935'/%3E%3Cpath d='M12 12h40v10H23v8h24v10H23v12H12z' fill='%23ffb300'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <button
+        class="brand"
+        id="homeLogo"
+        type="button"
+        aria-label="전체 MSDS 첫 화면으로"
+      >
+        <img src="./fct-logo-transparent.png" alt="FCT 주식회사 화인세라텍" />
+      </button>
+      <div class="brand-copy">
+        <h1>
+          MSDS 안전관리
+          <span class="version admin-only hidden">VER10_rev.1</span>
+        </h1>
+      </div>
+      <div class="top-actions">
+        <div class="view-switch" aria-label="화면 모드">
+          <button id="pcModeBtn" type="button">PC</button
+          ><button id="mobileModeBtn" type="button">모바일</button>
         </div>
-      </nav>
-    </aside>
+        <span class="mode-badge" id="modeBadge">연결 확인 중</span
+        ><button
+          class="btn btn-outline admin-entry"
+          id="adminEntryBtn"
+          type="button"
+        >
+          관리자 로그인</button
+        ><button class="btn btn-outline hidden" id="logoutBtn" type="button">
+          로그아웃
+        </button>
+      </div>
+    </header>
 
-    <main class="main">
-      <div class="demo-banner hidden" id="demoBanner"><b>VER7 데모</b> 이 기기에서 등록한 자료는 브라우저에 보존됩니다. 공용 사용은 다음 단계에서 저장소를 연결합니다.</div>
+    <div class="shell">
+      <aside class="sidebar">
+        <p class="side-label">MSDS 열람</p>
+        <nav class="nav" aria-label="메뉴">
+          <button class="active" type="button" data-view="browse">
+            <span>▤</span>전체 MSDS
+          </button>
+          <button type="button" data-view="help"><span>?</span>사용방법</button>
+          <div class="admin-nav hidden" id="adminNav">
+            <p class="side-label sub-label">관리자</p>
+            <button type="button" data-view="upload">
+              <span>＋</span>사용물질 등록
+            </button>
+            <button type="button" data-view="manage">
+              <span>⚙</span>구조 관리
+            </button>
+            <button type="button" data-view="data">
+              <span>⇄</span>엑셀 관리
+            </button>
+          </div>
+        </nav>
+      </aside>
 
-      <section class="view active" id="view-browse">
-        <div class="page-head"><div><h2 id="browseTitle">전체 MSDS</h2><p id="browseSubtitle">공장을 선택하거나 물질명을 검색하세요.</p></div><div class="head-actions admin-only hidden"><button class="btn btn-dark" id="adminDownloadAllBtn" type="button">전체 PDF ZIP</button><button class="btn btn-light" type="button" data-view="data">엑셀 관리</button><button class="btn btn-blue" type="button" data-view="upload">사용물질 등록</button></div></div>
-        <div class="stats" id="statusDashboard">
-          <button data-status="factories"><span>공장</span><strong id="statFactories">0</strong></button>
-          <button data-status="departments"><span>부서</span><strong id="statDepartments">0</strong></button>
-          <button data-status="equipments"><span>설비</span><strong id="statEquipments">0</strong></button>
-          <button data-status="processes"><span>공정</span><strong id="statProcesses">0</strong></button>
-          <button data-status="materials"><span>사용물질</span><strong id="statMaterials">0</strong></button>
-          <button data-status="no-material"><span>사용약품 없음</span><strong id="statNoMaterial">0</strong></button>
-          <button data-status="pdf-ready"><span>PDF 등록</span><strong id="statPdfReady">0</strong></button>
-          <button data-status="pdf-missing"><span>PDF 미등록</span><strong id="statPdfMissing">0</strong></button>
+      <main class="main">
+        <div class="demo-banner hidden" id="demoBanner">
+          <b>VER10 데모</b> 이 기기에서 등록한 자료는 브라우저에 보존됩니다.
+          공용 사용은 다음 단계에서 저장소를 연결합니다.
         </div>
-        <div class="panel">
-          <div class="browse-tools"><div class="search"><input id="searchInput" type="search" placeholder="물질명 검색" autocomplete="off" aria-label="물질명 검색"></div><button class="hidden" id="clearBrowseBtn" type="button" tabindex="-1" aria-hidden="true"></button></div>
-          <div class="hierarchy" id="hierarchyNav"></div>
-          <div class="status-results hidden" id="statusResults"></div>
-          <div class="table-wrap"><table><thead><tr><th>물질·PDF</th><th>연결된 사용처</th><th>열람</th><th class="admin-only hidden">관리</th></tr></thead><tbody id="documentTable"></tbody></table></div>
-          <div class="mobile-list" id="documentCards"></div>
-          <div class="empty" id="documentEmpty"><b>등록된 MSDS가 없습니다.</b>관리자가 PDF를 등록하면 이곳에 표시됩니다.</div>
+
+        <section class="view active" id="view-browse">
+          <div class="page-head">
+            <div>
+              <h2 id="browseTitle">전체 MSDS</h2>
+              <p id="browseSubtitle">공장을 선택하거나 물질명을 검색하세요.</p>
+            </div>
+            <div class="head-actions admin-only hidden">
+              <button
+                class="btn btn-dark"
+                id="adminDownloadAllBtn"
+                type="button"
+              >
+                전체 PDF ZIP</button
+              ><button class="btn btn-light" type="button" data-view="data">
+                엑셀 관리</button
+              ><button class="btn btn-blue" type="button" data-view="upload">
+                사용물질 등록
+              </button>
+            </div>
+          </div>
+          <div class="stats status-dashboard">
+            <button type="button" data-status="departments">
+              <span>부서</span><strong id="statDepartments">0</strong>
+            </button>
+            <button type="button" data-status="equipments">
+              <span>설비</span><strong id="statEquipments">0</strong>
+            </button>
+            <button type="button" data-status="materials">
+              <span>사용물질</span><strong id="statMaterials">0</strong>
+            </button>
+            <button type="button" data-status="no-material">
+              <span>사용약품 없음</span><strong id="statNoMaterial">0</strong>
+            </button>
+            <button type="button" data-status="pdf-ready">
+              <span>PDF 등록</span><strong id="statPdfReady">0</strong>
+            </button>
+            <button type="button" data-status="pdf-missing">
+              <span>PDF 미등록</span><strong id="statPdfMissing">0</strong>
+            </button>
+          </div>
+          <div class="panel">
+            <div class="browse-tools">
+              <div class="search">
+                <input
+                  id="searchInput"
+                  type="search"
+                  placeholder="물질명 검색"
+                  autocomplete="off"
+                  aria-label="물질명 검색"
+                />
+              </div>
+              <button
+                class="hidden"
+                id="clearBrowseBtn"
+                type="button"
+                tabindex="-1"
+                aria-hidden="true"
+              ></button>
+            </div>
+            <div class="hierarchy" id="hierarchyNav"></div>
+            <div class="status-results hidden" id="statusResults"></div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>물질·PDF</th>
+                    <th>연결된 사용처</th>
+                    <th>열람</th>
+                    <th class="admin-only hidden">관리</th>
+                  </tr>
+                </thead>
+                <tbody id="documentTable"></tbody>
+              </table>
+            </div>
+            <div class="mobile-list" id="documentCards"></div>
+            <div class="empty" id="documentEmpty">
+              <b>등록된 MSDS가 없습니다.</b>관리자가 PDF를 등록하면 이곳에
+              표시됩니다.
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-upload">
+          <div class="page-head">
+            <div>
+              <h2>사용물질 등록</h2>
+              <p>
+                사용물질을 먼저 등록하고 MSDS PDF는 선택하여 첨부할 수 있습니다.
+              </p>
+            </div>
+          </div>
+          <div class="upload-layout">
+            <article class="card-box">
+              <div class="section-row">
+                <h3>1. 사용처 등록</h3>
+                <button
+                  class="btn btn-blue btn-small"
+                  id="addUsageBtn"
+                  type="button"
+                >
+                  ＋ 사용처 추가
+                </button>
+              </div>
+              <div class="usage-list" id="usageList"></div>
+              <h3>2. 물질명 입력</h3>
+              <div class="field">
+                <label for="materialName">물질명</label
+                ><input
+                  id="materialName"
+                  placeholder="예: DTH-2"
+                  autocomplete="off"
+                />
+              </div>
+              <h3>3. 비고</h3>
+              <div class="field">
+                <label for="materialNote">비고</label
+                ><textarea
+                  id="materialNote"
+                  rows="3"
+                  placeholder="필요한 내용을 입력하세요."
+                ></textarea>
+              </div>
+              <h3>4. MSDS PDF 첨부 <small>(선택)</small></h3>
+              <label class="dropzone" id="dropzone"
+                ><b>PDF가 있으면 선택하거나 여기에 놓으세요.</b
+                ><span>PDF가 없어도 사용물질을 저장할 수 있습니다.</span
+                ><input id="pdfInput" type="file" accept=".pdf,application/pdf"
+              /></label>
+              <div class="selected-files" id="selectedFiles"></div>
+              <div class="form-actions">
+                <button
+                  class="btn btn-primary"
+                  id="saveDocumentsBtn"
+                  type="button"
+                >
+                  사용물질 저장
+                </button>
+              </div>
+            </article>
+            <aside class="card-box guide">
+              <h3>등록 기준</h3>
+              <ol>
+                <li>한 번 등록할 때 공장 하나만 선택합니다.</li>
+                <li>같은 공장 안에서는 사용처를 여러 개 지정할 수 있습니다.</li>
+                <li>물질명만 먼저 저장하고 PDF는 나중에 첨부할 수 있습니다.</li>
+                <li>1공장과 2공장의 사용물질은 각각 관리합니다.</li>
+              </ol>
+            </aside>
+          </div>
+        </section>
+
+        <section class="view" id="view-help">
+          <div class="page-head">
+            <div>
+              <h2>사용방법</h2>
+              <p>MSDS를 찾고 확인하는 방법입니다.</p>
+            </div>
+          </div>
+          <div class="help-grid">
+            <article class="card-box">
+              <h3>MSDS 열람</h3>
+              <ol>
+                <li>공장을 선택합니다.</li>
+                <li>부서와 설비를 차례로 선택합니다.</li>
+                <li>물질명을 누르고 PDF 보기 또는 다운로드를 선택합니다.</li>
+              </ol>
+            </article>
+            <article class="card-box">
+              <h3>물질 검색</h3>
+              <p>
+                전체 화면의 검색창에 물질명을 입력하면 해당 물질만 표시됩니다.
+              </p>
+            </article>
+            <article class="card-box admin-only hidden">
+              <h3>관리자 사용방법</h3>
+              <ol>
+                <li>사용물질 등록에서 사용처·물질명·비고를 저장합니다.</li>
+                <li>
+                  PDF가 없으면 나중에 PDF 미등록 현황에서 바로 첨부합니다.
+                </li>
+                <li>엑셀 관리에서 전체 자료를 내려받거나 일괄 등록합니다.</li>
+              </ol>
+              <p class="version-note">프로그램 버전 VER10_rev.1</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" id="view-manage">
+          <div class="page-head">
+            <div>
+              <h2>공장·부서·설비 관리</h2>
+              <p>항목을 추가·수정·삭제하고 표시 순서를 변경합니다.</p>
+            </div>
+          </div>
+          <div class="manage-grid">
+            <section class="manage-col">
+              <header>
+                <h3>1. 공장</h3>
+                <button class="btn btn-blue btn-small" data-add-type="factory">
+                  ＋ 추가
+                </button>
+              </header>
+              <div class="manage-list" id="factoryList"></div>
+            </section>
+            <section class="manage-col">
+              <header>
+                <h3>2. 부서</h3>
+                <button
+                  class="btn btn-blue btn-small"
+                  data-add-type="department"
+                >
+                  ＋ 추가
+                </button>
+              </header>
+              <div class="manage-list" id="departmentList"></div>
+            </section>
+            <section class="manage-col">
+              <header>
+                <h3>3. 설비</h3>
+                <button
+                  class="btn btn-blue btn-small"
+                  data-add-type="equipment"
+                >
+                  ＋ 추가
+                </button>
+              </header>
+              <div class="manage-list" id="equipmentList"></div>
+            </section>
+          </div>
+          <div class="notice">
+            상위 항목을 삭제하면 해당 사용처 연결이 해제됩니다. 다른 사용처가
+            남은 PDF 원본은 유지됩니다.
+          </div>
+        </section>
+
+        <section class="view" id="view-data">
+          <div class="page-head">
+            <div>
+              <h2>엑셀 관리</h2>
+              <p>
+                현재 구조와 연결 현황을 내려받거나 공장 간 자료를 복사합니다.
+              </p>
+            </div>
+          </div>
+          <div class="data-grid">
+            <article class="card-box">
+              <h3>엑셀 다운로드</h3>
+              <p>
+                전체 공장 또는 선택한 공장의 사용처 연결 현황을 내려받습니다.
+              </p>
+              <div class="field">
+                <label for="exportFactory">다운로드 범위</label
+                ><select id="exportFactory">
+                  <option value="">전체 공장</option>
+                </select>
+              </div>
+              <button class="btn btn-primary full" id="excelExportBtn">
+                엑셀 다운로드
+              </button>
+            </article>
+            <article class="card-box">
+              <h3>엑셀·PDF 전체 일괄등록</h3>
+              <p>
+                엑셀의 공장·부서·설비·물질명을 한 번에 등록합니다. PDF 파일은
+                있으면 함께 선택합니다.
+              </p>
+              <div class="field">
+                <label for="importTargetFactory">대상 공장</label
+                ><select id="importTargetFactory">
+                  <option value="">엑셀 공장명 그대로</option>
+                </select>
+              </div>
+              <label class="file-button"
+                >① 엑셀 파일 선택<input
+                  id="excelInput"
+                  type="file"
+                  accept=".xlsx,.csv"
+              /></label>
+              <p class="file-status" id="excelFileStatus">선택된 엑셀 없음</p>
+              <label class="file-button"
+                >② PDF 선택(선택사항)<input
+                  id="bulkPdfInput"
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  multiple
+              /></label>
+              <p class="file-status" id="bulkPdfStatus">선택된 PDF 없음</p>
+              <button class="btn btn-blue full" id="excelPreviewBtn" disabled>
+                등록 내용 확인
+              </button>
+              <div class="import-summary hidden" id="importSummary"></div>
+              <button class="btn btn-primary full hidden" id="excelImportBtn">
+                확인 후 전체 등록
+              </button>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <nav class="bottom-nav">
+      <button class="active" data-view="browse"><span>▤</span>전체</button
+      ><button class="admin-only hidden" data-view="upload">
+        <span>＋</span>사용물질</button
+      ><button class="admin-only hidden" data-view="manage">
+        <span>⚙</span>구조</button
+      ><button class="admin-only hidden" data-view="data">
+        <span>⇄</span>엑셀</button
+      ><button class="admin-entry" id="mobileAdminBtn">
+        <span>♙</span>관리자
+      </button>
+    </nav>
+
+    <dialog class="login-dialog" id="loginDialog">
+      <form id="loginForm">
+        <header>
+          <h3>관리자 모드</h3>
+          <button type="button" data-close-dialog="loginDialog">×</button>
+        </header>
+        <div class="dialog-body">
+          <p>관리자 비밀번호를 입력하면 수정 기능이 활성화됩니다.</p>
+          <div class="field">
+            <label for="adminPassword">비밀번호</label
+            ><input
+              id="adminPassword"
+              type="password"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              maxlength="4"
+              required
+              autocomplete="current-password"
+              placeholder="비밀번호 입력"
+            />
+          </div>
+          <p class="login-error" id="loginError"></p>
         </div>
-      </section>
+        <footer>
+          <button
+            class="btn btn-light"
+            type="button"
+            data-close-dialog="loginDialog"
+          >
+            취소</button
+          ><button class="btn btn-primary" type="submit">확인</button>
+        </footer>
+      </form>
+    </dialog>
 
-      <section class="view" id="view-upload">
-        <div class="page-head"><div><h2>사용물질 등록</h2><p>사용물질을 먼저 등록하고 MSDS PDF는 선택하여 첨부할 수 있습니다.</p></div></div>
-        <div class="upload-layout">
-          <article class="card-box">
-            <div class="section-row"><h3>1. 사용처 선택</h3><button class="btn btn-blue btn-small" id="addUsageBtn" type="button">＋ 사용처 추가</button></div>
-            <div class="usage-list" id="usageList"></div>
-            <h3>2. 물질명 입력</h3>
-            <div class="field"><label for="materialName">물질명</label><input id="materialName" placeholder="예: DTH-2" autocomplete="off"></div>
-            <h3>3. MSDS PDF 첨부 <small>(선택)</small></h3>
-            <label class="dropzone" id="dropzone"><b>PDF가 있으면 선택하거나 여기에 놓으세요.</b><span>PDF가 없어도 사용물질을 저장할 수 있습니다.</span><input id="pdfInput" type="file" accept=".pdf,application/pdf"></label>
-            <div class="selected-files" id="selectedFiles"></div>
-            <div class="form-actions"><button class="btn btn-primary" id="saveDocumentsBtn" type="button">사용물질 저장</button></div>
-          </article>
-          <aside class="card-box guide"><h3>등록 기준</h3><ol><li>한 번 등록할 때 공장 하나만 선택합니다.</li><li>같은 공장 안에서는 사용처를 여러 개 지정할 수 있습니다.</li><li>물질명만 먼저 저장하고 PDF는 나중에 첨부할 수 있습니다.</li><li>1공장과 2공장의 사용물질은 각각 관리합니다.</li></ol></aside>
+    <dialog class="name-dialog" id="nameDialog">
+      <form id="nameForm">
+        <header>
+          <h3 id="nameDialogTitle">항목 추가</h3>
+          <button type="button" data-close-dialog="nameDialog">×</button>
+        </header>
+        <div class="dialog-body">
+          <div class="field">
+            <label for="itemName">명칭</label
+            ><input id="itemName" required autocomplete="off" />
+          </div>
         </div>
-      </section>
+        <footer>
+          <button
+            class="btn btn-light"
+            type="button"
+            data-close-dialog="nameDialog"
+          >
+            취소</button
+          ><button class="btn btn-primary" type="submit">저장</button>
+        </footer>
+      </form>
+    </dialog>
 
-      <section class="view" id="view-help">
-        <div class="page-head"><div><h2>사용방법</h2><p>MSDS를 찾고 확인하는 방법입니다.</p></div></div>
-        <div class="help-grid">
-          <article class="card-box"><h3>MSDS 열람</h3><ol><li>공장을 선택합니다.</li><li>부서·설비·공정을 차례로 선택합니다.</li><li>물질명을 누르고 PDF 보기 또는 다운로드를 선택합니다.</li></ol></article>
-          <article class="card-box"><h3>물질 검색</h3><p>전체 화면의 검색창에 물질명을 입력하면 해당 물질만 표시됩니다.</p></article>
-          <article class="card-box admin-only hidden"><h3>관리자 사용방법</h3><ol><li>사용물질 등록에서 사용처와 물질명을 저장합니다.</li><li>PDF가 없으면 나중에 PDF 미등록 현황에서 바로 첨부합니다.</li><li>엑셀 관리에서 전체 자료를 내려받거나 일괄 등록합니다.</li></ol><p class="version-note">프로그램 버전 VER8_rev.1</p></article>
+    <dialog class="edit-dialog" id="editDocumentDialog">
+      <form id="editDocumentForm">
+        <header>
+          <h3>사용물질 수정</h3>
+          <button type="button" data-close-dialog="editDocumentDialog">
+            ×
+          </button>
+        </header>
+        <div class="dialog-body">
+          <div class="field">
+            <label for="editMaterialName">물질명</label
+            ><input id="editMaterialName" required autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="editMaterialNote">비고</label
+            ><textarea
+              id="editMaterialNote"
+              rows="3"
+              placeholder="필요한 내용을 입력하세요."
+            ></textarea>
+          </div>
+          <div class="section-row">
+            <h3>사용 위치</h3>
+            <button
+              class="btn btn-blue btn-small"
+              id="editAddUsageBtn"
+              type="button"
+            >
+              ＋ 위치 추가
+            </button>
+          </div>
+          <div class="usage-list" id="editUsageList"></div>
+          <div class="field">
+            <label for="editPdfInput">MSDS PDF 첨부·교체(선택)</label
+            ><input
+              id="editPdfInput"
+              type="file"
+              accept=".pdf,application/pdf"
+            /><small>선택하지 않으면 현재 PDF 상태가 유지됩니다.</small>
+          </div>
         </div>
-      </section>
+        <footer>
+          <button
+            class="btn btn-light"
+            type="button"
+            data-close-dialog="editDocumentDialog"
+          >
+            취소</button
+          ><button class="btn btn-primary" type="submit">수정 저장</button>
+        </footer>
+      </form>
+    </dialog>
 
-      <section class="view" id="view-manage">
-        <div class="page-head"><div><h2>공장·부서·설비·공정 관리</h2><p>항목을 추가·수정·삭제하고 표시 순서를 변경합니다.</p></div></div>
-        <div class="manage-grid">
-          <section class="manage-col"><header><h3>1. 공장</h3><button class="btn btn-blue btn-small" data-add-type="factory">＋ 추가</button></header><div class="manage-list" id="factoryList"></div></section>
-          <section class="manage-col"><header><h3>2. 부서</h3><button class="btn btn-blue btn-small" data-add-type="department">＋ 추가</button></header><div class="manage-list" id="departmentList"></div></section>
-          <section class="manage-col"><header><h3>3. 설비</h3><button class="btn btn-blue btn-small" data-add-type="equipment">＋ 추가</button></header><div class="manage-list" id="equipmentList"></div></section>
-          <section class="manage-col"><header><h3>4. 공정</h3><button class="btn btn-blue btn-small" data-add-type="process">＋ 추가</button></header><div class="manage-list" id="processList"></div></section>
+    <dialog class="pdf-dialog" id="pdfDialog">
+      <div class="pdf-viewer">
+        <header>
+          <h3 id="pdfTitle">MSDS PDF</h3>
+          <div>
+            <a id="pdfOpenNative" target="_blank" rel="noopener">전체화면</a
+            ><a id="pdfDownload" download>다운로드</a
+            ><button id="pdfClose" type="button" aria-label="PDF 닫기">
+              ×
+            </button>
+          </div>
+        </header>
+        <div class="pdf-stage">
+          <iframe id="pdfFrame" title="MSDS PDF" scrolling="yes"></iframe>
         </div>
-        <div class="notice">상위 항목을 삭제하면 해당 사용처 연결이 해제됩니다. 다른 사용처가 남은 PDF 원본은 유지됩니다.</div>
-      </section>
+      </div>
+    </dialog>
 
-      <section class="view" id="view-data">
-        <div class="page-head"><div><h2>엑셀 관리</h2><p>현재 구조와 연결 현황을 내려받거나 공장 간 자료를 복사합니다.</p></div></div>
-        <div class="data-grid">
-          <article class="card-box"><h3>엑셀 다운로드</h3><p>전체 공장 또는 선택한 공장의 사용처 연결 현황을 내려받습니다.</p><div class="field"><label for="exportFactory">다운로드 범위</label><select id="exportFactory"><option value="">전체 공장</option></select></div><button class="btn btn-primary full" id="excelExportBtn">엑셀 다운로드</button></article>
-          <article class="card-box"><h3>엑셀·PDF 전체 일괄등록</h3><p>엑셀의 공장·부서·설비·공정·물질명을 한 번에 등록합니다. PDF 파일은 있으면 함께 선택합니다.</p><div class="field"><label for="importTargetFactory">대상 공장</label><select id="importTargetFactory"><option value="">엑셀 공장명 그대로</option></select></div><label class="file-button">① 엑셀 파일 선택<input id="excelInput" type="file" accept=".xlsx,.csv"></label><p class="file-status" id="excelFileStatus">선택된 엑셀 없음</p><label class="file-button">② PDF 선택(선택사항)<input id="bulkPdfInput" type="file" accept=".pdf,application/pdf" multiple></label><p class="file-status" id="bulkPdfStatus">선택된 PDF 없음</p><button class="btn btn-blue full" id="excelPreviewBtn" disabled>등록 내용 확인</button><div class="import-summary hidden" id="importSummary"></div><button class="btn btn-primary full hidden" id="excelImportBtn">확인 후 전체 등록</button></article>
-        </div>
-      </section>
-    </main>
-  </div>
-
-  <nav class="bottom-nav"><button class="active" data-view="browse"><span>▤</span>전체</button><button data-view="help"><span>?</span>사용방법</button><button class="admin-only hidden" data-view="upload"><span>＋</span>사용물질</button><button class="admin-only hidden" data-view="manage"><span>⚙</span>구조</button><button class="admin-only hidden" data-view="data"><span>⇄</span>엑셀</button><button class="admin-entry" id="mobileAdminBtn"><span>♙</span>관리자</button></nav>
-
-  <dialog class="login-dialog" id="loginDialog"><form id="loginForm"><header><h3>관리자 모드</h3><button type="button" data-close-dialog="loginDialog">×</button></header><div class="dialog-body"><p>관리자 비밀번호를 입력하면 수정 기능이 활성화됩니다.</p><div class="field"><label for="adminPassword">비밀번호</label><input id="adminPassword" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" required autocomplete="current-password" placeholder="비밀번호 입력"></div><p class="login-error" id="loginError"></p></div><footer><button class="btn btn-light" type="button" data-close-dialog="loginDialog">취소</button><button class="btn btn-primary" type="submit">확인</button></footer></form></dialog>
-
-  <dialog class="name-dialog" id="nameDialog"><form id="nameForm"><header><h3 id="nameDialogTitle">항목 추가</h3><button type="button" data-close-dialog="nameDialog">×</button></header><div class="dialog-body"><div class="field"><label for="itemName">명칭</label><input id="itemName" required autocomplete="off"></div></div><footer><button class="btn btn-light" type="button" data-close-dialog="nameDialog">취소</button><button class="btn btn-primary" type="submit">저장</button></footer></form></dialog>
-
-  <dialog class="edit-dialog" id="editDocumentDialog"><form id="editDocumentForm"><header><h3>사용물질 수정</h3><button type="button" data-close-dialog="editDocumentDialog">×</button></header><div class="dialog-body"><div class="field"><label for="editMaterialName">물질명</label><input id="editMaterialName" required autocomplete="off"></div><div class="section-row"><h3>사용 위치</h3><button class="btn btn-blue btn-small" id="editAddUsageBtn" type="button">＋ 위치 추가</button></div><div class="usage-list" id="editUsageList"></div><div class="field"><label for="editPdfInput">MSDS PDF 첨부·교체(선택)</label><input id="editPdfInput" type="file" accept=".pdf,application/pdf"><small>선택하지 않으면 현재 PDF 상태가 유지됩니다.</small></div></div><footer><button class="btn btn-light" type="button" data-close-dialog="editDocumentDialog">취소</button><button class="btn btn-primary" type="submit">수정 저장</button></footer></form></dialog>
-
-  <dialog class="pdf-dialog" id="pdfDialog"><div class="pdf-viewer"><header><h3 id="pdfTitle">MSDS PDF</h3><div><a id="pdfOpenNative" target="_blank" rel="noopener">전체화면</a><a id="pdfDownload" download>다운로드</a><button id="pdfClose" type="button" aria-label="PDF 닫기">×</button></div></header><div class="pdf-stage"><iframe id="pdfFrame" title="MSDS PDF" scrolling="yes"></iframe></div></div></dialog>
-
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="./vendor/jszip.min.js"></script>
-  <script src="./config.js"></script>
-  <script src="./app.js"></script>
-</body>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="./vendor/jszip.min.js"></script>
+    <script src="./config.js"></script>
+    <script src="./app.js"></script>
+  </body>
 </html>

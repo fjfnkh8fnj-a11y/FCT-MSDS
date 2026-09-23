@@ -1,4 +1,4 @@
--- FCT MSDS VER7_rev.7 데이터베이스 및 간편 비밀번호 운영 설정
+-- FCT MSDS VER10_rev.1 신규 데이터베이스 및 간편 비밀번호 운영 설정
 -- Supabase SQL Editor에서 전체 실행합니다.
 -- 관리자 비밀번호는 웹 화면에서 확인하는 간편 잠금 방식입니다.
 -- 따라서 이 설정은 사내 편의용이며 강한 보안이 필요한 외부 서비스에는 적합하지 않습니다.
@@ -43,6 +43,7 @@ create table if not exists public.documents (
   id uuid primary key default gen_random_uuid(),
   factory_id uuid not null references public.factories(id) on delete cascade,
   material_name text not null,
+  notes text not null default '',
   file_name text not null,
   storage_path text not null unique,
   size_bytes bigint not null default 0,
@@ -57,9 +58,9 @@ create table if not exists public.document_locations (
   factory_id uuid not null references public.factories(id) on delete cascade,
   department_id uuid not null references public.departments(id) on delete cascade,
   equipment_id uuid not null references public.equipments(id) on delete cascade,
-  process_id uuid not null references public.processes(id) on delete cascade,
+  process_id uuid references public.processes(id) on delete set null,
   created_at timestamptz not null default now(),
-  unique(document_id,process_id)
+  unique(document_id,equipment_id)
 );
 
 insert into public.factories(name,sort_order)
