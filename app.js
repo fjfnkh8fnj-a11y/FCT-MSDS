@@ -2992,7 +2992,10 @@
                 }),
               },
             );
-          if (blob) {
+          if (
+            blob &&
+            (!hasPdf(doc) || norm(doc.file_name) !== norm(group.pdf))
+          ) {
             const path =
               "factory-" + fid + "/" + doc.id + "/" + storageSafeName(group.pdf);
             await storagePut(path, blob);
