@@ -191,7 +191,7 @@
       .replace(/[^A-Za-z0-9._-]+/g, "_")
       .replace(/^_+|_+$/g, "")
       .slice(0, 80);
-    return (stem || "msds") + (ext || ".pdf");
+    return Date.now().toString(36) + "_" + (stem || "msds") + (ext || ".pdf");
   };
   const sizeText = (n) => {
     n = Number(n) || 0;
