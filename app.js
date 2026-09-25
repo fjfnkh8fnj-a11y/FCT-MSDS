@@ -182,6 +182,17 @@
     ].filter(Boolean).join(" "));
   }
   const safeName = (v) => String(v || "file").replace(/[\\/:*?"<>|]/g, "_");
+  const storageSafeName = (v) => {
+    const original = safeName(v);
+    const dot = original.lastIndexOf(".");
+    const ext = dot >= 0 ? original.slice(dot).replace(/[^.A-Za-z0-9_-]/g, "") : "";
+    const stem = (dot >= 0 ? original.slice(0, dot) : original)
+      .normalize("NFKD")
+      .replace(/[^A-Za-z0-9._-]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 80);
+    return (stem || "msds") + (ext || ".pdf");
+  };
   const sizeText = (n) => {
     n = Number(n) || 0;
     return n < 1024
@@ -1717,7 +1728,7 @@
       if (!doc) {
         const fileName = saveFile ? saveFile.name : "__NO_PDF__" + id,
           path = saveFile
-            ? "factory-" + factoryId + "/" + id + "/" + safeName(saveFile.name)
+            ? "factory-" + factoryId + "/" + id + "/" + storageSafeName(saveFile.name)
             : "unattached/" + id;
         if (saveFile) await storagePut(path, saveFile);
         let rows;
@@ -1745,7 +1756,7 @@
           });
         if (saveFile) {
           const path =
-            "factory-" + factoryId + "/" + doc.id + "/" + safeName(saveFile.name);
+            "factory-" + factoryId + "/" + doc.id + "/" + storageSafeName(saveFile.name);
           await storagePut(path, saveFile);
           await api("/rest/v1/documents?id=eq." + encodeURIComponent(doc.id), {
             method: "PATCH",
@@ -1942,7 +1953,7 @@
         if (file.size > 50 * 1024 * 1024) { toast("PDF는 50MB 이하만 등록할 수 있습니다."); return; }
         const old = hasPdf(d) ? d.storage_path : "",
           path =
-            "factory-" + d.factory_id + "/" + d.id + "/" + safeName(file.name);
+            "factory-" + d.factory_id + "/" + d.id + "/" + storageSafeName(file.name);
         await storagePut(path, file);
         patch = {
           ...patch,
@@ -2945,7 +2956,7 @@
         if (!doc) {
           const fileName = blob ? group.pdf : "__NO_PDF__" + id,
             path = blob
-              ? "factory-" + fid + "/" + id + "/" + safeName(group.pdf)
+              ? "factory-" + fid + "/" + id + "/" + storageSafeName(group.pdf)
               : "unattached/" + id;
           if (blob) await storagePut(path, blob);
           const rows = await api("/rest/v1/documents", {
@@ -2983,7 +2994,7 @@
             );
           if (blob) {
             const path =
-              "factory-" + fid + "/" + doc.id + "/" + safeName(group.pdf);
+              "factory-" + fid + "/" + doc.id + "/" + storageSafeName(group.pdf);
             await storagePut(path, blob);
             await api(
               "/rest/v1/documents?id=eq." + encodeURIComponent(doc.id),
