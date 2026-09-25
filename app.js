@@ -12,6 +12,7 @@
     admin: null,
     token: "",
     notesSupported: DEMO,
+    metadataSupported: DEMO,
     selected: { factory: "", department: "", equipment: "" },
     browse: {
       factory_id: "",
@@ -21,7 +22,9 @@
     },
     statusFilter: "",
     draftUses: [],
+    draftComponents: [],
     editUses: [],
+    editComponents: [],
     files: [],
     excelFile: null,
     bulkPdfFiles: [],
@@ -29,9 +32,31 @@
     edit: null,
     editDocumentId: "",
     layoutMode: "",
+    regPath: [],
+    analysisResult: null,
+    analysisRun: 0,
+    isAnalyzing: false,
+    isSaving: false,
+    isEditing: false,
   };
   let layoutLocked = Boolean(localStorage.getItem("fct-layout-mode"));
   let toastTimer = null;
+
+  const REGULATORY_CATALOG = {
+    toluene: {
+      components: [
+        { name: "톨루엔", content: "85% 이상 여부 확인", cas: "108-88-3" },
+      ],
+      regulations: {
+        chemical: ["사고대비물질"],
+        osh: ["관리대상 유해물질", "작업환경측정 대상", "특수건강진단 대상"],
+        dangerous: ["제4류 인화성액체", "제1석유류(비수용성)", "지정수량 200L"],
+        basis:
+          "사고대비물질: 톨루엔 85% 이상 함유 혼합물. 위험물 분류는 제품 인화점과 함량을 최종 확인해야 합니다.",
+        checked_at: "2026-09-22",
+      },
+    },
+  };
 
   const uid = (p) =>
     p +
@@ -55,6 +80,107 @@
     String(v ?? "")
       .trim()
       .toLocaleLowerCase("ko");
+  const pdfKey = (v) =>
+    norm(v)
+      .normalize("NFKC")
+      .replace(/[^a-z0-9가-힣]/g, "");
+  const BULK_PDF_ALIASES = {
+    ipa: ["isopropylalcohol"],
+    습동면유: ["shellmorlinas2bl10"],
+    절삭유: ["onc3002"],
+    boricacid: ["boricacid"],
+    cuso4: ["copperiisulfatepentahydrate", "coppersulfate"],
+    ferricchloride: ["염화제2철"],
+    h2so4: ["황산msds20251113"],
+    hcl: ["염산msds20251113"],
+    hf: ["불산msds"],
+    kaucn2: ["goldpotassiumcyanide", "pgc"],
+    nickelsulfamate: ["nisulfamate60"],
+    ry5125: ["ry5100series"],
+    wbr2050: ["wbr2000series"],
+    ethanol: ["ethanol995"],
+    alumina: ["aluminumoxide"],
+    alumina알루미나파우더al2o3: ["aluminumoxide"],
+    byk111: ["disperbyk111"],
+    dbp: ["dibutylphthalate"],
+    dibutylphthalatedbp: ["dibutylphthalate"],
+    ethanol995: ["ethanol995"],
+    ethylalcohol95: ["ethanol95"],
+    magnesiumoxidemgo산화마그네슘: ["tatehomag500"],
+    mgo: ["tatehomag500"],
+    mopaste: ["paronmp2"],
+    mopasteparonmp289: ["paronmp2"],
+    mullite: ["shomullite"],
+    mullitekcm: ["shomullite"],
+    mullite뮬라이트: ["shomullite"],
+    mullite뮬라이트kcmlinker: ["shomullite"],
+    pastefctp2: ["fctp2paste"],
+    pastepctp1: ["fctp1paste"],
+    pastev1: ["fctv1paste"],
+    pvbbinder: ["slecb", "slecbbhblbm"],
+    silicondioxide: ["snowmarksp3"],
+    silicondioxide이산화규소: ["snowmarksp3"],
+    toluene995: ["toluenemsds"],
+    산화이트륨yttriumiiioxide: ["yttriumoxide"],
+    산화크롬chromiumiiioxide: ["cr2o3"],
+    이산화타이타늄titaniumdioxide: ["tio2"],
+  };
+  function automaticBulkPdfName(material) {
+    const key = pdfKey(material),
+      aliases = BULK_PDF_ALIASES[key] || [key],
+      candidates = state.bulkPdfFiles
+        .map((file) => ({ file, key: pdfKey(file.name.replace(/\.pdf$/i, "")) }))
+        .filter(({ key: fileKey }) =>
+          aliases.some((alias) => alias && (fileKey.includes(alias) || alias.includes(fileKey))),
+        );
+    if (!candidates.length) return "";
+    candidates.sort((a, b) => {
+      const exactA = aliases.some((alias) => a.key === alias) ? 1 : 0,
+        exactB = aliases.some((alias) => b.key === alias) ? 1 : 0;
+      return exactB - exactA || a.key.length - b.key.length;
+    });
+    return candidates[0].file.name;
+  }
+  function catalogFor(name) {
+    const key = norm(name)
+      .replace(/[^a-z가-힣0-9]/g, "")
+      .replace(/(?:물질안전보건자료|msds|sds)$/i, "");
+    return ["톨루엔", "toluene", "톨루엔toluene", "toluene톨루엔"].includes(key)
+      ? REGULATORY_CATALOG.toluene
+      : null;
+  }
+  function metadataFor(doc) {
+    const preset = catalogFor(doc.material_name) || {},
+      stored = doc.regulations || {},
+      presetReg = preset.regulations || {};
+    return {
+      components:
+        Array.isArray(doc.components) && doc.components.length
+          ? doc.components
+          : preset.components || [],
+      regulations: {
+        ...presetReg,
+        ...stored,
+        chemical: (stored.chemical || []).length ? stored.chemical : presetReg.chemical || [],
+        osh: (stored.osh || []).length ? stored.osh : presetReg.osh || [],
+        dangerous: (stored.dangerous || []).length ? stored.dangerous : presetReg.dangerous || [],
+        basis: stored.basis || presetReg.basis || "",
+      },
+    };
+  }
+  function regulationHasValues(r = {}) {
+    return Boolean((r.chemical || []).length || (r.osh || []).length || (r.dangerous || []).length || r.basis || r.physical_state);
+  }
+  function searchableText(doc) {
+    const m = metadataFor(doc), r = m.regulations || {};
+    return norm([
+      doc.material_name, shownFileName(doc), doc.notes,
+      ...(m.components || []).flatMap((c) => [c.name, c.content, c.cas]),
+      ...(r.chemical || []), ...(r.osh || []), ...(r.dangerous || []),
+      r.basis, r.physical_state,
+      ...(doc.locations || []).flatMap((l) => [l.factory_name,l.department_name,l.equipment_name]),
+    ].filter(Boolean).join(" "));
+  }
   const safeName = (v) => String(v || "file").replace(/[\\/:*?"<>|]/g, "_");
   const sizeText = (n) => {
     n = Number(n) || 0;
@@ -289,15 +415,24 @@
     let docs;
     try {
       docs = await api(
-        "/rest/v1/documents?select=id,factory_id,material_name,notes,file_name,storage_path,size_bytes,created_at,updated_at,document_locations(id,factory_id,department_id,equipment_id,process_id,factories(name),departments(name),equipments(name))&order=created_at.desc",
+        "/rest/v1/documents?select=id,factory_id,material_name,notes,components,regulations,file_name,storage_path,size_bytes,created_at,updated_at,document_locations(id,factory_id,department_id,equipment_id,process_id,factories(name),departments(name),equipments(name))&order=created_at.desc",
       );
       state.notesSupported = true;
+      state.metadataSupported = true;
     } catch (err) {
       if (!/notes|column|schema cache/i.test(err.message)) throw err;
-      docs = await api(
-        "/rest/v1/documents?select=id,factory_id,material_name,file_name,storage_path,size_bytes,created_at,updated_at,document_locations(id,factory_id,department_id,equipment_id,process_id,factories(name),departments(name),equipments(name))&order=created_at.desc",
-      );
-      state.notesSupported = false;
+      state.metadataSupported = false;
+      try {
+        docs = await api(
+          "/rest/v1/documents?select=id,factory_id,material_name,notes,file_name,storage_path,size_bytes,created_at,updated_at,document_locations(id,factory_id,department_id,equipment_id,process_id,factories(name),departments(name),equipments(name))&order=created_at.desc",
+        );
+        state.notesSupported = true;
+      } catch (notesErr) {
+        docs = await api(
+          "/rest/v1/documents?select=id,factory_id,material_name,file_name,storage_path,size_bytes,created_at,updated_at,document_locations(id,factory_id,department_id,equipment_id,process_id,factories(name),departments(name),equipments(name))&order=created_at.desc",
+        );
+        state.notesSupported = false;
+      }
     }
     state.factories = fs || [];
     state.documents = (docs || [])
@@ -424,6 +559,158 @@
     return out;
   }
 
+  function regulationGroups(doc) {
+    const m = metadataFor(doc),
+      r = m.regulations || {};
+    return {
+      chemical: r.chemical || [],
+      osh: r.osh || [],
+      dangerous: r.dangerous || [],
+    };
+  }
+  function regulationReviewLabel(doc) {
+    const r = metadataFor(doc).regulations || {};
+    return r.confirmed
+      ? '<span class="review-state confirmed">확인 완료</span>'
+      : '<span class="review-state pending">자동입력 · 확인 필요</span>';
+  }
+  function regulationBadges(doc) {
+    const g = regulationGroups(doc),
+      labels = [
+        ...g.chemical,
+        ...g.osh,
+        ...(g.dangerous.length ? ["위험물"] : []),
+      ];
+    return labels.length
+      ? '<span class="reg-badges">' +
+          labels
+            .slice(0, 4)
+            .map((x) => "<em>" + esc(x) + "</em>")
+            .join("") +
+          (labels.length > 4
+            ? "<em>외 " + (labels.length - 4) + "개</em>"
+            : "") +
+          "</span>"
+      : "";
+  }
+  function regulatoryStats(items = state.documents) {
+    const defs = {
+      chemical: {
+        label: "유해화학물질",
+        children: [
+          "인체급성유해성물질",
+          "인체만성유해성물질",
+          "생태유해성물질",
+          "사고대비물질",
+        ],
+      },
+      osh: {
+        label: "산업안전보건법 대상",
+        children: [
+          "관리대상 유해물질",
+          "특별관리물질",
+          "작업환경측정 대상",
+          "특수건강진단 대상",
+        ],
+      },
+      dangerous: {
+        label: "위험물",
+        children: ["제1류", "제2류", "제3류", "제4류", "제5류", "제6류"],
+      },
+    };
+    const level = state.regPath[0],
+      detail = state.regPath[1];
+    const make = (key, label, matcher) => {
+      const docs = items.filter((d) =>
+        matcher(regulationGroups(d)[level || key] || []),
+      );
+      const cas = new Set(
+        docs
+          .flatMap((d) => metadataFor(d).components.map((c) => c.cas))
+          .filter(Boolean),
+      );
+      return { key, label, products: docs.length, ingredients: cas.size, pending: docs.filter((d)=>!metadataFor(d).regulations.confirmed).length };
+    };
+    if (!level)
+      return Object.entries(defs).map(([k, v]) =>
+        make(k, v.label, (a) => a.length),
+      );
+    if (!detail)
+      return defs[level].children.map((x) =>
+        make(x, x, (a) =>
+          a.some((v) => v.includes(x) || x.includes(String(v).split("(")[0])),
+        ),
+      );
+    return [];
+  }
+  function renderRegulatoryDashboard() {
+    const box = $("regDashboard"),
+      back = $("regBackBtn"),
+      crumb = $("regBreadcrumb");
+    if (!box) return;
+    const labels = {
+      chemical: "유해화학물질",
+      osh: "산업안전보건법 대상",
+      dangerous: "위험물",
+    };
+    crumb.textContent = [
+      "전체 법적 규제 현황",
+      ...state.regPath.map((x) => labels[x] || x),
+    ].join(" › ");
+    back.classList.toggle("hidden", !state.regPath.length);
+    const stats = regulatoryStats();
+    if (stats.length) {
+      box.innerHTML = stats
+        .map(
+          (x) =>
+            '<button type="button" data-reg-key="' +
+            esc(x.key) +
+            '"><span>' +
+            esc(x.label) +
+            "</span><strong>" +
+            x.products +
+            "개 제품</strong><small>규제 성분 " +
+            x.ingredients +
+            "개</small>" +
+            (x.pending ? '<em class="reg-review-count">확인 필요 '+x.pending+'개</em>' : '<em class="reg-review-count done">전체 확인 완료</em>') +
+            "</button>",
+        )
+        .join("");
+      return;
+    }
+    const level = state.regPath[0],
+      detail = state.regPath[1];
+    const docs = state.documents.filter((d) =>
+      (regulationGroups(d)[level] || []).some(
+        (v) => v.includes(detail) || detail.includes(String(v).split("(")[0]),
+      ),
+    );
+    box.innerHTML = docs.length
+      ? docs
+          .map((d) => {
+            const m = metadataFor(d);
+            return (
+              '<article class="reg-product"><b>' +
+              esc(d.material_name) +
+              regulationReviewLabel(d) +
+              "</b><span>" +
+              m.components
+                .map(
+                  (c) =>
+                    esc(c.name) + " · " + esc(c.content) + " · " + esc(c.cas),
+                )
+                .join("<br>") +
+              "</span><small>" +
+              esc(m.regulations.basis || "판정 근거 확인 필요") +
+              '</small><button class="btn btn-light btn-small" data-open-reg-doc="' +
+              esc(d.id) +
+              '">사용처 보기</button></article>'
+            );
+          })
+          .join("")
+      : '<div class="reg-empty">해당 제품이 없습니다.</div>';
+  }
+
   function setLayoutMode(mode, persist = false) {
     state.layoutMode = mode;
     document.body.classList.toggle("mode-pc", mode === "pc");
@@ -437,7 +724,7 @@
   }
 
   function switchView(name) {
-    if (!["browse", "help"].includes(name) && !state.admin) {
+    if (!["browse", "regulations", "help"].includes(name) && !state.admin) {
       openLogin();
       return;
     }
@@ -450,6 +737,7 @@
     if (name === "manage") renderManage();
     if (name === "upload") renderUsageRows();
     if (name === "data") renderDataSelects();
+    if (name === "regulations") renderRegulatoryDashboard();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function applyAdminUi() {
@@ -469,6 +757,7 @@
     if (
       !state.admin &&
       !$("view-browse").classList.contains("active") &&
+      !$("view-regulations").classList.contains("active") &&
       !$("view-help").classList.contains("active")
     )
       switchView("browse");
@@ -539,7 +828,7 @@
     return state.documents
       .filter(
         (d) =>
-          (!q || norm(d.material_name).includes(q)) &&
+          (!q || searchableText(d).includes(q)) &&
           (!state.browse.factory_id ||
             d.factory_id === state.browse.factory_id) &&
           (state.statusFilter !== "pdf-missing" || !hasPdf(d)) &&
@@ -694,7 +983,7 @@
         ? "설비를 선택하거나 부서 전체 물질을 확인하세요."
         : f
           ? "부서를 선택하거나 공장 전체 물질을 확인하세요."
-          : "공장을 선택하거나 물질명을 검색하세요.";
+          : "공장을 선택하거나 제품명을 검색하세요.";
   }
   function pathHtml(l) {
     return (
@@ -718,8 +1007,14 @@
       },
     ];
     state.files = [];
+    state.analysisRun++;
+    state.analysisResult = null;
+    state.draftComponents = [emptyComponent()];
     $("materialName").value = "";
     $("materialNote").value = "";
+    clearRegulationForm();
+    $("analysisStatus").classList.add("hidden");
+    $("existingDocumentNotice").classList.add("hidden");
     renderSelectedFiles();
     switchView("upload");
   }
@@ -856,6 +1151,7 @@
           (ready ? "PDF" : "—") +
           '</span><div><span class="file-name">' +
           esc(d.material_name) +
+          (metadataFor(d).regulations.physical_state ? '<span class="state-badge">'+esc(metadataFor(d).regulations.physical_state)+'</span>' : '') +
           (d.locations.length > 1
             ? '<span class="usage-badge">' + d.locations.length + "곳</span>"
             : "") +
@@ -869,6 +1165,7 @@
           (d.notes
             ? '<span class="sub note-text">비고 · ' + esc(d.notes) + "</span>"
             : "") +
+          regulationBadges(d) +
           '</div></div></td><td><div class="paths">' +
           paths +
           '</div></td><td><div class="row-actions">' +
@@ -885,6 +1182,7 @@
         return (
           '<article class="mobile-card"><h3>' +
           esc(d.material_name) +
+          (metadataFor(d).regulations.physical_state ? '<span class="state-badge">'+esc(metadataFor(d).regulations.physical_state)+'</span>' : '') +
           (d.locations.length > 1
             ? '<span class="usage-badge">' + d.locations.length + "곳</span>"
             : "") +
@@ -906,6 +1204,7 @@
             )
             .join("<br>") +
           (d.notes ? "<br>비고 · " + esc(d.notes) : "") +
+          regulationBadges(d) +
           '</p><div class="mobile-actions">' +
           (ready
             ? '<button class="btn btn-blue" data-open-doc="' +
@@ -932,7 +1231,7 @@
     const equipmentSelected = Boolean(state.browse.equipment_id);
     $("documentEmpty").innerHTML = equipmentSelected
       ? "<b>사용약품 없음</b>이 설비에는 등록된 사용물질이 없습니다."
-      : "<b>조건에 맞는 사용물질이 없습니다.</b>공장 단계 또는 물질명을 다시 확인하세요.";
+      : "<b>조건에 맞는 사용물질이 없습니다.</b>공장 단계 또는 제품명을 다시 확인하세요.";
     $("documentEmpty").hidden = list.length > 0;
   }
 
@@ -1003,16 +1302,264 @@
       })
       .join("");
   }
-  function addFiles(files) {
-    [...files].forEach((f) => {
-      if (
-        (f.type === "application/pdf" ||
-          f.name.toLowerCase().endsWith(".pdf")) &&
-        !state.files.some((x) => x.name === f.name && x.size === f.size)
+  function emptyComponent() {
+    return { id: uid("component"), name: "", content: "", cas: "" };
+  }
+  function renderComponentRows() {
+    if (!state.draftComponents.length)
+      state.draftComponents = [emptyComponent()];
+    $("componentList").innerHTML = state.draftComponents
+      .map(
+        (c) =>
+          '<div class="component-row"><input data-component="' +
+          esc(c.id) +
+          '" data-component-field="name" value="' +
+          esc(c.name) +
+          '" placeholder="화학물질명"><input data-component="' +
+          esc(c.id) +
+          '" data-component-field="content" value="' +
+          esc(c.content) +
+          '" placeholder="함량(%)"><input data-component="' +
+          esc(c.id) +
+          '" data-component-field="cas" value="' +
+          esc(c.cas) +
+          '" placeholder="CAS No."><button type="button" class="usage-remove" data-remove-component="' +
+          esc(c.id) +
+          '" ' +
+          (state.draftComponents.length === 1 ? "disabled" : "") +
+          ">×</button></div>",
       )
-        state.files.push(f);
-    });
+      .join("");
+  }
+  function selectedValues(name) {
+    return [
+      ...document.querySelectorAll('input[name="' + name + '"]:checked'),
+    ].map((x) => x.value);
+  }
+  function draftRegulations() {
+    const dangerous = $("regDangerous").checked
+      ? [
+          $("dangerousClass").value.trim(),
+          $("designatedQuantity").value.trim(),
+        ].filter(Boolean)
+      : [];
+    return {
+      chemical: selectedValues("regChemical"),
+      osh: selectedValues("regOsh"),
+      dangerous,
+      basis: $("regBasis").value.trim(),
+      checked_at: new Date().toISOString().slice(0, 10),
+      confirmed: $("regConfirmed").checked,
+      confirmed_at: $("regConfirmed").checked ? new Date().toISOString() : "",
+      physical_state: $("physicalState").value,
+      input_method: state.analysisResult?.method || "manual",
+      missing_fields: state.analysisResult?.missing || [],
+    };
+  }
+  function clearRegulationForm() {
+    document.querySelectorAll('input[name="regChemical"],input[name="regOsh"]').forEach((x) => (x.checked = false));
+    $("regDangerous").checked = false;
+    $("dangerousClass").value = "";
+    $("designatedQuantity").value = "";
+    $("regBasis").value = "";
+    $("regConfirmed").checked = false;
+    $("physicalState").value = "";
+  }
+  function clearPdfDerivedFields() {
+    state.analysisRun++;
+    state.isAnalyzing = false;
+    state.analysisResult = null;
+    state.draftComponents = [emptyComponent()];
+    renderComponentRows();
+    clearRegulationForm();
+    $("materialName").value = "";
+    $("analysisStatus").classList.add("hidden");
+    updateExistingNotice();
+  }
+  function updateExistingNotice() {
+    const uses = state.draftUses.filter((u) => u.factory_id);
+    const fids = [...new Set(uses.map((u) => u.factory_id))];
+    const found = fids.length === 1 && state.documents.find((d) => d.factory_id === fids[0] && norm(d.material_name) === norm($("materialName").value));
+    $("existingDocumentNotice").classList.toggle("hidden", !found);
+    if (!found) $("updateExistingInfo").checked = false;
+    return found || null;
+  }
+  function applyCatalogToForm(preserveComponents = false) {
+    const preset = catalogFor($("materialName").value);
+    if (!preset) return;
+    if (!preserveComponents) {
+      state.draftComponents = preset.components.map((c) => ({
+        id: uid("component"),
+        ...c,
+      }));
+      renderComponentRows();
+    }
+    document
+      .querySelectorAll('input[name="regChemical"],input[name="regOsh"]')
+      .forEach(
+        (x) =>
+          (x.checked = [
+            ...(preset.regulations.chemical || []),
+            ...(preset.regulations.osh || []),
+          ].includes(x.value)),
+      );
+    $("regDangerous").checked = Boolean(preset.regulations.dangerous?.length);
+    $("dangerousClass").value = preset.regulations.dangerous?.[0] || "";
+    $("designatedQuantity").value =
+      preset.regulations.dangerous?.[2] ||
+      preset.regulations.dangerous?.[1] ||
+      "";
+    $("regBasis").value = preset.regulations.basis || "";
+  }
+  function setAnalysisStatus(items, scanned = false) {
+    const box = $("analysisStatus");
+    box.classList.remove("hidden");
+    box.innerHTML =
+      "<b>" +
+      (scanned ? "자동인식 불가 · 수기입력 필요" : "PDF 자동분석 결과") +
+      '</b><div class="analysis-grid">' +
+      items.map(x => '<span class="'+(x.ok?'found':'missing')+'"><i>'+(x.ok?'✓':'!')+'</i>'+esc(x.label)+'<small>'+esc(x.message || (x.ok?'자동입력 완료':'미입력 · 수기확인 필요'))+'</small></span>').join("") +
+      "</div>" +
+      (scanned ? "<p>글자가 이미지로 저장된 스캔 PDF입니다. 아래 입력칸에 직접 입력해 주세요.</p>" : "<p>자동입력 결과는 저장 전에 반드시 확인·수정해 주세요.</p>");
+  }
+  async function extractPdfData(file) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const header = new TextDecoder("latin1").decode(bytes.slice(0, 1024));
+    if (!header.includes("%PDF-")) {
+      const error = new Error("보안 또는 DRM 적용 PDF");
+      error.code = "SECURED_PDF";
+      throw error;
+    }
+    const pdfjs = await import("./vendor/pdf.min.mjs");
+    const parser = await import("./vendor/msds-parser.mjs");
+    pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
+    let pdf;
+    try {
+      pdf = await pdfjs.getDocument({ data: bytes }).promise;
+    } catch (error) {
+      if (/password|encrypted|invalid pdf|pdf structure/i.test(error?.message || ""))
+        error.code = "SECURED_PDF";
+      throw error;
+    }
+    const data = await parser.buildPdfData(pdf);
+    data.parsed = parser.parseMsds(data);
+    return data;
+  }
+  async function enrichBulkGroupFromPdf(group, file) {
+    if (!file) return;
+    const missing = new Set(group.regulations.missing_fields || []);
+    try {
+      const pdfData = await extractPdfData(file),
+        text = pdfData.text || "",
+        compact = text.replace(/\s+/g, " ").trim();
+      if (!compact || compact.length < 40) {
+        group.regulations.input_method = "scanned";
+        ["화학물질명", "함량", "CAS No.", "법적 규제정보"].forEach((x) => missing.add(x));
+      } else {
+        if (!group.components.length && pdfData.parsed.components.length)
+          group.components = pdfData.parsed.components.map((item) => ({ ...item }));
+        if (!group.regulations.physical_state) {
+          const stateMatch = compact.match(/(?:물리적\s*상태|성상)\s*[:：]?\s*(액체|고체|기체)/i);
+          if (stateMatch) group.regulations.physical_state = stateMatch[1];
+        }
+        const known = [
+          ["인체급성유해성물질", "chemical"],
+          ["인체만성유해성물질", "chemical"],
+          ["생태유해성물질", "chemical"],
+          ["사고대비물질", "chemical"],
+          ["관리대상 유해물질", "osh"],
+          ["특별관리물질", "osh"],
+          ["작업환경측정 대상", "osh"],
+          ["특수건강진단 대상", "osh"],
+        ];
+        known.forEach(([label, bucket]) => {
+          if (text.replace(/\s/g, "").includes(label.replace(/\s/g, "")))
+            group.regulations[bucket] = [...new Set([...group.regulations[bucket], label])];
+        });
+        if (/제\s*4\s*류|제1\s*석유류|위험물안전관리법/.test(text))
+          group.regulations.dangerous = [
+            ...new Set([...group.regulations.dangerous, "제4류 인화성액체(세부 품명 확인 필요)"]),
+          ];
+        group.regulations.input_method = "pdf-text";
+        if (!group.components.length && !pdfData.parsed.noListedComponents)
+          ["화학물질명", "함량", "CAS No."].forEach((x) => missing.add(x));
+        missing.add("법적 규제정보");
+      }
+    } catch (error) {
+      group.regulations.input_method = error?.code === "SECURED_PDF" ? "secured" : "failed";
+      ["화학물질명", "함량", "CAS No.", "법적 규제정보"].forEach((x) => missing.add(x));
+    }
+    group.regulations.missing_fields = [...missing];
+  }
+  async function analyzeSelectedPdf() {
+    const file = state.files[0];
+    if (!file || state.isAnalyzing) return;
+    const run = ++state.analysisRun;
+    const btn = $("analyzePdfBtn"), save = $("saveDocumentsBtn");
+    state.isAnalyzing = true;
+    btn.disabled = true;
+    save.disabled = true;
+    btn.textContent = "PDF 분석 중…";
+    setAnalysisStatus([{label:"PDF 읽기",ok:true,message:"페이지를 분석하고 있습니다."}]);
+    try {
+      const pdfData = await extractPdfData(file),
+        text = pdfData.text,
+        compact = text.replace(/\s+/g," ").trim();
+      if (run !== state.analysisRun || state.files[0] !== file) return;
+      if (compact.length < 40) { state.analysisResult={method:"scanned",missing:["제품명","성상","화학물질명","함량","CAS No.","법적 규제정보"]}; setAnalysisStatus([{label:"제품명"},{label:"성상"},{label:"화학물질명·함량"},{label:"CAS No."},{label:"법적 규제정보"}], true); return; }
+      const comps = pdfData.parsed.components.map((item) => ({ id: uid("component"), ...item })); if (comps.length) { state.draftComponents = comps; renderComponentRows(); }
+      const parsedProduct = pdfData.parsed.productName || "";
+      const filenameProduct = file.name.replace(/\.pdf$/i, "").replace(/^(msds|sds)[\s_\-]*/i, "").trim();
+      const product = /^\d+$/.test(parsedProduct) || /^o\s*제품\s*형태/i.test(parsedProduct) ? filenameProduct : parsedProduct;
+      if (!$("materialName").value.trim() && product) $("materialName").value = product;
+      if (catalogFor($("materialName").value)) applyCatalogToForm(Boolean(comps.length));
+      const stateMatch = compact.match(/(?:물리적\s*상태|성상)\s*[:：]?\s*(액체|고체|기체)/i);
+      if (stateMatch) $("physicalState").value = stateMatch[1];
+      const known=[["인체급성유해성물질","regChemical"],["인체만성유해성물질","regChemical"],["생태유해성물질","regChemical"],["사고대비물질","regChemical"],["관리대상 유해물질","regOsh"],["특별관리물질","regOsh"],["작업환경측정 대상","regOsh"],["특수건강진단 대상","regOsh"]];
+      known.forEach(([label,name])=>{if(text.replace(/\s/g,"").includes(label.replace(/\s/g,""))){const el=[...document.querySelectorAll('input[name="'+name+'"]')].find(x=>x.value===label);if(el)el.checked=true;}});
+      if (/제\s*4\s*류|제1\s*석유류|위험물안전관리법/.test(text)) { $("regDangerous").checked=true; if(!$("dangerousClass").value)$("dangerousClass").value="제4류 인화성액체(세부 품명 확인 필요)"; }
+      const noListed = Boolean(pdfData.parsed.noListedComponents);
+      const reviewRequired = Boolean(pdfData.parsed.reviewRequired);
+      const regulationCandidates = selectedValues("regChemical").length+selectedValues("regOsh").length+($("regDangerous").checked?1:0)>0;
+      const items=[
+        {label:"제품명",ok:Boolean($("materialName").value.trim())},
+        {label:"성상",ok:Boolean($("physicalState").value),message:$("physicalState").value || "미입력 · 수기확인 필요"},
+        noListed
+          ? {label:"구성성분",ok:true,message:"MSDS에 기재 대상 성분 없음"}
+          : {label:"화학물질명",ok:Boolean(comps.length)&&comps.every(x=>x.name)},
+        {label:"함량",ok:noListed||(Boolean(comps.length)&&comps.every(x=>x.content))},
+        {label:"CAS No.",ok:noListed||(Boolean(comps.length)&&comps.every(x=>x.cas))},
+        {label:"법적 규제정보",ok:false,message:regulationCandidates?"자동 후보 · 원문 확인 필요":"미입력 · 수기확인 필요"},
+        ...(reviewRequired ? [{label:"자동분석 검토",ok:false,message:"복합 표·영업비밀 항목 확인 필요"}] : [])
+      ];
+      state.analysisResult={method:"pdf-text",missing:items.filter(x=>!x.ok).map(x=>x.label)}; setAnalysisStatus(items);
+      updateExistingNotice();
+    } catch (err) {
+      if (run !== state.analysisRun) return;
+      const secured = err?.code === "SECURED_PDF";
+      state.analysisResult={method:secured?"secured":"failed",missing:["제품명","성상","화학물질명","함량","CAS No.","법적 규제정보"]};
+      setAnalysisStatus([{label:secured?"보안 PDF":"손상되었거나 읽을 수 없는 PDF"},{label:"제품명"},{label:"성상"},{label:"화학물질명·함량"},{label:"법적 규제정보"}],true);
+      if (secured) $("analysisStatus").querySelector("b").textContent = "보안 PDF · 수기입력 필요";
+      if (secured) $("analysisStatus").querySelector("p").textContent = "보안 또는 DRM이 적용된 PDF입니다. PDF는 그대로 첨부하고 항목은 직접 입력해 주세요.";
+    }
+    finally {
+      if (run === state.analysisRun) {
+        state.isAnalyzing = false;
+        btn.disabled = !state.files.length;
+        save.disabled = false;
+        btn.textContent="PDF 다시 분석";
+      }
+    }
+  }
+  function addFiles(files) {
+    const list = [...files], f = list.find((x) => x.type === "application/pdf" || x.name.toLowerCase().endsWith(".pdf"));
+    if (!f) { toast("PDF 파일 한 개를 선택해 주세요."); return; }
+    if (f.size > 50 * 1024 * 1024) { toast("PDF는 50MB 이하만 등록할 수 있습니다."); return; }
+    clearPdfDerivedFields();
+    state.files = [f];
     renderSelectedFiles();
+    $("analyzePdfBtn").disabled = false;
+    analyzeSelectedPdf();
   }
   function renderSelectedFiles() {
     $("selectedFiles").innerHTML = state.files
@@ -1070,11 +1617,19 @@
       body: JSON.stringify({ prefixes: paths }),
     });
   }
-  async function saveDocuments() {
+  async function saveDocumentsCore() {
     const uses = state.draftUses,
       material = $("materialName").value.trim(),
       note = $("materialNote").value.trim(),
-      file = state.files[0] || null;
+      file = state.files[0] || null,
+      components = state.draftComponents
+        .filter((c) => c.name || c.content || c.cas)
+        .map(({ name, content, cas }) => ({
+          name: name.trim(),
+          content: content.trim(),
+          cas: cas.trim(),
+        })),
+      regulations = draftRegulations();
     if (
       !uses.length ||
       uses.some((u) => !u.factory_id || !u.department_id || !u.equipment_id)
@@ -1083,12 +1638,25 @@
       return;
     }
     if (!material) {
-      toast("물질명을 입력해 주세요.");
+      toast("제품명을 입력해 주세요.");
       return;
     }
     if (note && !state.notesSupported) {
       toast(
-        "비고 저장 설정이 필요합니다. VER10 데이터베이스 업데이트를 먼저 실행해 주세요.",
+        "비고 저장 설정이 필요합니다. VER11 데이터베이스 업데이트를 먼저 실행해 주세요.",
+      );
+      return;
+    }
+    if (
+      !DEMO &&
+      !state.metadataSupported &&
+      (components.length ||
+        regulations.chemical.length ||
+        regulations.osh.length ||
+        regulations.dangerous.length)
+    ) {
+      toast(
+        "VER11 데이터베이스 설정 후 성분·규제정보를 저장할 수 있습니다.",
       );
       return;
     }
@@ -1102,6 +1670,9 @@
       (x) =>
         x.factory_id === factoryId && norm(x.material_name) === norm(material),
     );
+    const existedBeforeSave = Boolean(doc);
+    const updateExisting = !doc || $("updateExistingInfo").checked;
+    const saveFile = updateExisting ? file : null;
     if (DEMO) {
       if (!doc) {
         const id = uid("material");
@@ -1110,25 +1681,29 @@
           factory_id: factoryId,
           material_name: material,
           notes: note,
-          file_name: file ? file.name : "__NO_PDF__" + id,
-          storage_path: file
-            ? "demo/" + factoryId + "/" + file.name
+          components,
+          regulations,
+          file_name: saveFile ? saveFile.name : "__NO_PDF__" + id,
+          storage_path: saveFile
+            ? "demo/" + factoryId + "/" + saveFile.name
             : "unattached/" + id,
-          size_bytes: file?.size || 0,
+          size_bytes: saveFile?.size || 0,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           locations: [],
         };
         state.documents.push(doc);
-      } else {
+      } else if (updateExisting) {
         doc.notes = note;
+        if (components.length) doc.components = components;
+        if (regulationHasValues(regulations)) doc.regulations = regulations;
         doc.updated_at = new Date().toISOString();
       }
-      if (file) {
-        doc.file_name = file.name;
-        doc.storage_path = "demo/" + factoryId + "/" + file.name;
-        doc.size_bytes = file.size;
-        await blobPut(doc.id, file);
+      if (saveFile) {
+        doc.file_name = saveFile.name;
+        doc.storage_path = "demo/" + factoryId + "/" + saveFile.name;
+        doc.size_bytes = saveFile.size;
+        await blobPut(doc.id, saveFile);
         delete doc.asset_url;
       }
       uses.forEach((u) => {
@@ -1140,84 +1715,101 @@
     } else {
       const id = doc?.id || crypto.randomUUID();
       if (!doc) {
-        const fileName = file ? file.name : "__NO_PDF__" + id,
-          path = file
-            ? "factory-" + factoryId + "/" + id + "/" + safeName(file.name)
+        const fileName = saveFile ? saveFile.name : "__NO_PDF__" + id,
+          path = saveFile
+            ? "factory-" + factoryId + "/" + id + "/" + safeName(saveFile.name)
             : "unattached/" + id;
-        if (file) await storagePut(path, file);
-        const rows = await api("/rest/v1/documents", {
-          method: "POST",
-          headers: { Prefer: "return=representation" },
-          body: JSON.stringify([
-            {
-              id,
-              factory_id: factoryId,
-              material_name: material,
-              ...(state.notesSupported ? { notes: note } : {}),
-              file_name: fileName,
-              storage_path: path,
-              size_bytes: file?.size || 0,
-              updated_at: new Date().toISOString(),
-            },
-          ]),
-        });
+        if (saveFile) await storagePut(path, saveFile);
+        let rows;
+        try {
+          rows = await api("/rest/v1/documents", {
+            method: "POST",
+            headers: { Prefer: "return=representation" },
+            body: JSON.stringify([{id,factory_id:factoryId,material_name:material,...(state.notesSupported?{notes:note}:{}),...(state.metadataSupported?{components,regulations}:{}),file_name:fileName,storage_path:path,size_bytes:saveFile?.size||0,updated_at:new Date().toISOString()}]),
+          });
+        } catch (error) {
+          if (saveFile) await storageDelete([path]).catch(() => {});
+          throw error;
+        }
         doc = rows?.[0] || { id };
-      } else {
-        if (state.notesSupported)
+      } else if (updateExisting) {
+        if (state.notesSupported || state.metadataSupported)
           await api("/rest/v1/documents?id=eq." + encodeURIComponent(doc.id), {
             method: "PATCH",
             body: JSON.stringify({
-              notes: note,
+              ...(state.notesSupported && note ? { notes: note } : {}),
+              ...(state.metadataSupported && components.length ? { components } : {}),
+              ...(state.metadataSupported && regulationHasValues(regulations) ? { regulations } : {}),
               updated_at: new Date().toISOString(),
             }),
           });
-        if (file) {
+        if (saveFile) {
           const path =
-            "factory-" + factoryId + "/" + doc.id + "/" + safeName(file.name);
-          await storagePut(path, file);
+            "factory-" + factoryId + "/" + doc.id + "/" + safeName(saveFile.name);
+          await storagePut(path, saveFile);
           await api("/rest/v1/documents?id=eq." + encodeURIComponent(doc.id), {
             method: "PATCH",
             body: JSON.stringify({
-              file_name: file.name,
+              file_name: saveFile.name,
               storage_path: path,
-              size_bytes: file.size,
+              size_bytes: saveFile.size,
               updated_at: new Date().toISOString(),
             }),
           });
         }
       }
-      for (const u of uses)
-        await api(
-          "/rest/v1/document_locations?on_conflict=document_id,equipment_id",
-          {
+      try {
+        const linkedEquipmentIds = new Set((doc.locations || []).map((x) => x.equipment_id));
+        for (const u of uses) {
+          if (linkedEquipmentIds.has(u.equipment_id)) continue;
+          await api("/rest/v1/document_locations", {
             method: "POST",
-            headers: { Prefer: "resolution=ignore-duplicates" },
-            body: JSON.stringify([
-              {
-                document_id: doc.id,
-                factory_id: u.factory_id,
-                department_id: u.department_id,
-                equipment_id: u.equipment_id,
-                process_id: u.process_id,
-              },
-            ]),
-          },
-        );
+            body: JSON.stringify([{document_id:doc.id,factory_id:u.factory_id,department_id:u.department_id,equipment_id:u.equipment_id,process_id:u.process_id}]),
+          });
+          linkedEquipmentIds.add(u.equipment_id);
+        }
+      } catch (error) {
+        if (!existedBeforeSave) {
+          await api("/rest/v1/documents?id=eq."+encodeURIComponent(doc.id), {method:"DELETE"}).catch(()=>{});
+          if (saveFile && doc.storage_path) await storageDelete([doc.storage_path]).catch(()=>{});
+        }
+        throw error;
+      }
     }
     state.files = [];
     state.draftUses = [emptyUse()];
+    state.draftComponents = [emptyComponent()];
     $("materialName").value = "";
     $("materialNote").value = "";
+    clearRegulationForm();
     $("pdfInput").value = "";
+    state.analysisResult = null;
+    $("analyzePdfBtn").disabled = true;
+    $("analyzePdfBtn").textContent = "PDF 자동분석";
+    $("analysisStatus").classList.add("hidden");
+    $("existingDocumentNotice").classList.add("hidden");
+    $("updateExistingInfo").checked = false;
     renderSelectedFiles();
     if (!DEMO) await remoteLoad();
     renderAll();
     switchView("browse");
     toast(
-      file
+      saveFile
         ? "사용물질과 PDF를 저장했습니다."
-        : "사용물질을 저장했습니다. PDF는 나중에 첨부할 수 있습니다.",
+        : doc && !updateExisting
+          ? "기존 제품정보는 유지하고 사용처만 추가했습니다."
+          : "사용물질을 저장했습니다. PDF는 나중에 첨부할 수 있습니다.",
     );
+  }
+  async function saveDocuments() {
+    if (state.isAnalyzing) { toast("PDF 분석이 끝난 뒤 저장해 주세요."); return; }
+    if (state.isSaving) return;
+    state.isSaving = true;
+    const btn = $("saveDocumentsBtn");
+    btn.disabled = true;
+    btn.textContent = "저장 중…";
+    try { await saveDocumentsCore(); }
+    finally { state.isSaving = false; btn.disabled = false; btn.textContent = "사용물질 저장"; }
   }
 
   function renderEditUsageRows() {
@@ -1259,6 +1851,16 @@
       })
       .join("");
   }
+  function renderEditComponentRows() {
+    if (!state.editComponents.length) state.editComponents = [emptyComponent()];
+    $("editComponentList").innerHTML = state.editComponents.map((c) =>
+      '<div class="component-row"><input data-edit-component="'+esc(c.id)+'" data-component-field="name" value="'+esc(c.name)+'" placeholder="화학물질명"><input data-edit-component="'+esc(c.id)+'" data-component-field="content" value="'+esc(c.content)+'" placeholder="함량(%)"><input data-edit-component="'+esc(c.id)+'" data-component-field="cas" value="'+esc(c.cas)+'" placeholder="CAS No."><button type="button" class="usage-remove" data-edit-remove-component="'+esc(c.id)+'" '+(state.editComponents.length===1?'disabled':'')+'>×</button></div>'
+    ).join("");
+  }
+  function setChecked(name, values) {
+    const set = new Set(values || []);
+    document.querySelectorAll('input[name="'+name+'"]').forEach((x) => (x.checked = set.has(x.value)));
+  }
   function openEditDocument(id) {
     const d = state.documents.find((x) => x.id === id);
     if (!d) return;
@@ -1272,6 +1874,17 @@
     }));
     $("editMaterialName").value = d.material_name;
     $("editMaterialNote").value = d.notes || "";
+    const meta = metadataFor(d), r = meta.regulations || {};
+    state.editComponents = (meta.components || []).map((c) => ({id:uid("editcomponent"),name:c.name||"",content:c.content||"",cas:c.cas||""}));
+    renderEditComponentRows();
+    setChecked("editRegChemical", r.chemical);
+    setChecked("editRegOsh", r.osh);
+    $("editRegDangerous").checked = Boolean((r.dangerous || []).length);
+    $("editDangerousClass").value = r.dangerous?.[0] || "";
+    $("editDesignatedQuantity").value = r.dangerous?.[2] || r.dangerous?.[1] || "";
+    $("editRegBasis").value = r.basis || "";
+    $("editRegConfirmed").checked = Boolean(r.confirmed);
+    $("editPhysicalState").value = r.physical_state || "";
     $("editPdfInput").value = "";
     renderEditUsageRows();
     $("editDocumentDialog").showModal();
@@ -1282,11 +1895,19 @@
       uses = state.editUses,
       name = $("editMaterialName").value.trim(),
       note = $("editMaterialNote").value.trim(),
-      file = $("editPdfInput").files?.[0];
+      file = $("editPdfInput").files?.[0],
+      components = state.editComponents.filter((c)=>c.name||c.content||c.cas).map(({name,content,cas})=>({name:name.trim(),content:content.trim(),cas:cas.trim()})),
+      regulations = {
+        chemical:selectedValues("editRegChemical"), osh:selectedValues("editRegOsh"),
+        dangerous:$("editRegDangerous").checked ? [$("editDangerousClass").value.trim(),$("editDesignatedQuantity").value.trim()].filter(Boolean) : [],
+        basis:$("editRegBasis").value.trim(), physical_state:$("editPhysicalState").value,
+        confirmed:$("editRegConfirmed").checked, confirmed_at:$("editRegConfirmed").checked?new Date().toISOString():"",
+        checked_at:new Date().toISOString().slice(0,10), input_method:"manual-review", missing_fields:[],
+      };
     if (!d || !name) return;
     if (note && !state.notesSupported) {
       toast(
-        "비고 저장 설정이 필요합니다. VER10 데이터베이스 업데이트를 먼저 실행해 주세요.",
+        "비고 저장 설정이 필요합니다. VER11 데이터베이스 업데이트를 먼저 실행해 주세요.",
       );
       return;
     }
@@ -1298,6 +1919,8 @@
     if (DEMO) {
       d.material_name = name;
       d.notes = note;
+      d.components = components;
+      d.regulations = regulations;
       d.locations = locations;
       d.updated_at = new Date().toISOString();
       if (file) {
@@ -1312,9 +1935,11 @@
       let patch = {
         material_name: name,
         ...(state.notesSupported ? { notes: note } : {}),
+        ...(state.metadataSupported ? { components, regulations } : {}),
         updated_at: new Date().toISOString(),
       };
       if (file) {
+        if (file.size > 50 * 1024 * 1024) { toast("PDF는 50MB 이하만 등록할 수 있습니다."); return; }
         const old = hasPdf(d) ? d.storage_path : "",
           path =
             "factory-" + d.factory_id + "/" + d.id + "/" + safeName(file.name);
@@ -1325,29 +1950,28 @@
           storage_path: path,
           size_bytes: file.size,
         };
-        if (old && old !== path) await storageDelete([old]);
+        patch._old_storage_path = old && old !== path ? old : "";
       }
+      const oldPath = patch._old_storage_path;
+      delete patch._old_storage_path;
       await api("/rest/v1/documents?id=eq." + encodeURIComponent(d.id), {
         method: "PATCH",
         body: JSON.stringify(patch),
       });
-      await api(
-        "/rest/v1/document_locations?document_id=eq." +
-          encodeURIComponent(d.id),
-        { method: "DELETE" },
-      );
-      await api("/rest/v1/document_locations", {
-        method: "POST",
-        body: JSON.stringify(
-          locations.map((l) => ({
-            document_id: d.id,
-            factory_id: d.factory_id,
-            department_id: l.department_id,
-            equipment_id: l.equipment_id,
-            process_id: l.process_id,
-          })),
-        ),
-      });
+      if (oldPath) await storageDelete([oldPath]).catch(() => {});
+      const linkedEquipmentIds = new Set((d.locations || []).map((x) => x.equipment_id));
+      for (const l of locations) {
+        if (linkedEquipmentIds.has(l.equipment_id)) continue;
+        await api("/rest/v1/document_locations", {
+          method: "POST",
+          body: JSON.stringify([{document_id:d.id,factory_id:d.factory_id,department_id:l.department_id,equipment_id:l.equipment_id,process_id:l.process_id}]),
+        });
+        linkedEquipmentIds.add(l.equipment_id);
+      }
+      const keep = new Set(locations.map((l)=>l.equipment_id));
+      for (const old of d.locations.filter((l)=>!keep.has(l.equipment_id))) {
+        await api("/rest/v1/document_locations?id=eq."+encodeURIComponent(old.id), {method:"DELETE"});
+      }
       await remoteLoad();
     }
     $("editDocumentDialog").close();
@@ -1443,10 +2067,10 @@
       state.documents = state.documents.filter((x) => x.id !== id);
       demoSave();
     } else {
-      if (hasPdf(d)) await storageDelete([d.storage_path]);
       await api("/rest/v1/documents?id=eq." + encodeURIComponent(id), {
         method: "DELETE",
       });
+      if (hasPdf(d)) await storageDelete([d.storage_path]).catch(() => {});
       await remoteLoad();
     }
     renderAll();
@@ -1478,7 +2102,7 @@
     }
     downloadBlob(
       await zip.generateAsync({ type: "blob" }),
-      "FCT_MSDS_전체PDF_VER10_rev.1.zip",
+      "FCT_MSDS_전체PDF_VER11_rev.1.zip",
     );
   }
 
@@ -1641,8 +2265,15 @@
   }
   async function deleteStructure(type, id) {
     const info = typeInfo(type);
+    const linked = state.documents.filter((d) => d.locations.some((l) =>
+      type === "factory" ? l.factory_id === id : type === "department" ? l.department_id === id : l.equipment_id === id
+    ));
+    if (linked.length) {
+      alert(info.label + "에 사용물질 " + linked.length + "건이 연결되어 있어 삭제할 수 없습니다.\n사용물질 수정에서 위치를 옮기거나 해당 자료를 삭제한 뒤 다시 시도해 주세요.");
+      return;
+    }
     if (
-      !confirm(info.label + "를 삭제할까요? 연결된 사용처도 함께 해제됩니다.")
+      !confirm(info.label + "를 삭제할까요? 연결된 사용물질은 없습니다.")
     )
       return;
     if (DEMO) {
@@ -1653,19 +2284,6 @@
           info.arr.findIndex((x) => x.id === id),
           1,
         );
-      state.documents.forEach(
-        (d) =>
-          (d.locations = d.locations.filter((l) =>
-            type === "factory"
-              ? l.factory_id !== id
-              : type === "department"
-                ? l.department_id !== id
-                : type === "equipment"
-                  ? l.equipment_id !== id
-                  : l.process_id !== id,
-          )),
-      );
-      state.documents = state.documents.filter((d) => d.locations.length);
       demoSave();
     } else {
       await api("/rest/v1/" + info.table + "?id=eq." + encodeURIComponent(id), {
@@ -1797,7 +2415,27 @@
   async function exportExcel() {
     const fid = $("exportFactory").value,
       f = factory(fid),
-      rows = [["공장", "부서", "설비", "물질명", "비고", "PDF파일명"]];
+      rows = [
+        [
+          "공장",
+          "부서",
+          "설비",
+          "제품명",
+          "성상",
+          "화학물질명",
+          "함량",
+          "CAS No.",
+          "유해화학물질",
+          "산안법",
+          "위험물",
+          "판정근거",
+          "규제확인",
+          "입력방식",
+          "미입력항목",
+          "비고",
+          "PDF파일명",
+        ],
+      ];
     state.factories
       .filter((x) => !fid || x.id === fid)
       .forEach((fa) =>
@@ -1807,23 +2445,60 @@
               doc.locations.some((l) => l.equipment_id === e.id),
             );
             if (docs.length)
-              docs.forEach((doc) =>
-                rows.push([
-                  fa.name,
-                  d.name,
-                  e.name,
-                  doc.material_name,
-                  doc.notes || "",
-                  shownFileName(doc),
-                ]),
-              );
-            else rows.push([fa.name, d.name, e.name, "", "", ""]);
+              docs.forEach((doc) => {
+                const m = metadataFor(doc),
+                  comps = m.components.length
+                    ? m.components
+                    : [{ name: "", content: "", cas: "" }],
+                  r = m.regulations || {};
+                comps.forEach((c) =>
+                  rows.push([
+                    fa.name,
+                    d.name,
+                    e.name,
+                    doc.material_name,
+                    r.physical_state || "",
+                    c.name || "",
+                    c.content || "",
+                    c.cas || "",
+                    (r.chemical || []).join(", "),
+                    (r.osh || []).join(", "),
+                    (r.dangerous || []).join(", "),
+                    r.basis || "",
+                    r.confirmed ? "확인" : "검토필요",
+                    r.input_method === "pdf-text" ? "PDF 자동입력" : r.input_method === "scanned" ? "스캔 PDF · 수기입력" : r.input_method === "secured" ? "보안 PDF · 수기입력" : r.input_method || "수기입력",
+                    (r.missing_fields || []).join(", "),
+                    doc.notes || "",
+                    shownFileName(doc),
+                  ]),
+                );
+              });
+            else
+              rows.push([
+                fa.name,
+                d.name,
+                e.name,
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+              ]);
           }),
         ),
       );
     downloadBlob(
       await workbookBlob(rows),
-      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER10_rev.1.xlsx",
+      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER11_rev.1.xlsx",
     );
   }
   function parseCsv(text) {
@@ -1969,7 +2644,7 @@
           f: at("공장"),
           d: at("부서"),
           e: at("설비"),
-          m: at("물질명"),
+          m: at("제품명") >= 0 ? at("제품명") : at("물질명"),
           pdf: at("PDF파일명"),
         };
       if ([c.f, c.d, c.e].some((x) => x < 0))
@@ -1994,15 +2669,14 @@
               demoSave();
             }
           } else {
-            await api(
-              "/rest/v1/document_locations?on_conflict=document_id,equipment_id",
-              {
+            if (!doc.locations.some((x) => x.equipment_id === u.equipment_id)) {
+              await api("/rest/v1/document_locations", {
                 method: "POST",
-                headers: { Prefer: "resolution=ignore-duplicates" },
                 body: JSON.stringify([{ document_id: doc.id, ...u }]),
-              },
-            );
-            linked++;
+              });
+              doc.locations.push(locationFromUse(u));
+              linked++;
+            }
           }
         } else if (pdf) missing++;
       }
@@ -2026,27 +2700,38 @@
       ? parseCsv(await file.text())
       : await parseXlsx(file);
     rows = rows.filter((r) => r.some((v) => String(v || "").trim()));
-    const hi = rows.findIndex(
-      (r) =>
-        r.map((v) => String(v || "").trim()).includes("공장") &&
-        r.map((v) => String(v || "").trim()).includes("설비"),
-    );
-    if (hi < 0) throw new Error("공장과 설비 열을 찾지 못했습니다.");
+    const hi = rows.findIndex((r) => {
+      const cells = r.map((v) => String(v || "").trim());
+      return cells.includes("설비") && (cells.includes("제품명") || cells.includes("물질명"));
+    });
+    if (hi < 0) throw new Error("제품명과 설비 열을 찾지 못했습니다.");
     const h = rows[hi].map((x) => String(x || "").trim()),
       at = (n) => h.indexOf(n),
       c = {
         f: at("공장"),
         d: at("부서"),
         e: at("설비"),
-        m: at("물질명"),
+        m: at("제품명") >= 0 ? at("제품명") : at("물질명"),
+        state: at("성상") >= 0 ? at("성상") : at("약품상태"),
+        component: at("화학물질명"),
+        content: at("함량"),
+        cas: at("CAS No."),
+        chemical: at("유해화학물질"),
+        osh: at("산안법"),
+        dangerous: at("위험물"),
+        basis: at("판정근거"),
+        confirmed: at("규제확인"),
+        method: at("입력방식"),
+        missing: at("미입력항목"),
         n: at("비고"),
         pdf: at("PDF파일명"),
       };
-    if ([c.f, c.d, c.e].some((x) => x < 0))
-      throw new Error("공장·부서·설비 열이 필요합니다.");
     const target = factory($("importTargetFactory").value),
       valid = [],
       errors = [];
+    if (c.d < 0 || c.e < 0) throw new Error("부서·설비 열이 필요합니다.");
+    if (c.f < 0 && !target)
+      throw new Error("공장 열이 없는 엑셀입니다. 위에서 등록할 공장을 먼저 선택해 주세요.");
     rows.slice(hi + 1).forEach((r, i) => {
       const item = {
         row: hi + i + 2,
@@ -2054,6 +2739,17 @@
         department: String(r[c.d] || "").trim(),
         equipment: String(r[c.e] || "").trim(),
         material: c.m >= 0 ? String(r[c.m] || "").trim() : "",
+        physicalState: c.state >= 0 ? String(r[c.state] || "").trim() : "",
+        component: c.component >= 0 ? String(r[c.component] || "").trim() : "",
+        content: c.content >= 0 ? String(r[c.content] || "").trim() : "",
+        cas: c.cas >= 0 ? String(r[c.cas] || "").trim() : "",
+        chemical: c.chemical >= 0 ? String(r[c.chemical] || "").split(/[,;\n]/).map(x=>x.trim()).filter(Boolean) : [],
+        osh: c.osh >= 0 ? String(r[c.osh] || "").split(/[,;\n]/).map(x=>x.trim()).filter(Boolean) : [],
+        dangerous: c.dangerous >= 0 ? String(r[c.dangerous] || "").split(/[,;\n]/).map(x=>x.trim()).filter(Boolean) : [],
+        basis: c.basis >= 0 ? String(r[c.basis] || "").trim() : "",
+        confirmed: c.confirmed >= 0 && /^(확인|y|yes|true|1)$/i.test(String(r[c.confirmed] || "").trim()),
+        method: c.method >= 0 ? String(r[c.method] || "").trim() : "",
+        missing: c.missing >= 0 ? String(r[c.missing] || "").split(/[,;\n]/).map(x=>x.trim()).filter(Boolean) : [],
         note: c.n >= 0 ? String(r[c.n] || "").trim() : "",
         pdf: c.pdf >= 0 ? String(r[c.pdf] || "").trim() : "",
       };
@@ -2062,14 +2758,23 @@
       else valid.push(item);
     });
     const pdfMap = new Map(state.bulkPdfFiles.map((f) => [norm(f.name), f])),
+      oversizedNames = new Set(state.bulkPdfFiles.filter((f)=>f.size>50*1024*1024).map((f)=>norm(f.name))),
       existingNames = new Set(
         state.documents.filter(hasPdf).map((d) => norm(d.file_name)),
       );
     valid.forEach((x) => {
+      if (!x.pdf && x.material) {
+        x.pdf = automaticBulkPdfName(x.material);
+        x.autoPdf = Boolean(x.pdf);
+      }
       x.hasPdf =
         !x.pdf || pdfMap.has(norm(x.pdf)) || existingNames.has(norm(x.pdf));
       if (x.pdf && !x.hasPdf) errors.push({ ...x, error: "PDF 파일 미첨부" });
+      if (x.pdf && oversizedNames.has(norm(x.pdf))) errors.push({ ...x, error: "PDF 50MB 초과" });
     });
+    const pdfNameCounts = new Map();
+    state.bulkPdfFiles.forEach((f)=>pdfNameCounts.set(norm(f.name),(pdfNameCounts.get(norm(f.name))||0)+1));
+    for (const [name,count] of pdfNameCounts) if (count>1) errors.push({row:"-",material:name,error:"같은 이름의 PDF "+count+"개 선택"});
     const groups = new Map();
     valid
       .filter((x) => x.material)
@@ -2081,9 +2786,24 @@
             material: x.material,
             note: x.note,
             pdf: x.pdf,
+            components: [],
+            regulations: {chemical:[],osh:[],dangerous:[],basis:"",physical_state:"",confirmed:false,confirmed_at:"",input_method:"excel",missing_fields:[]},
             rows: [],
           });
-        groups.get(key).rows.push(x);
+        const g = groups.get(key);
+        g.rows.push(x);
+        if (x.note) g.note = x.note;
+        if (x.pdf) g.pdf = x.pdf;
+        if (x.component || x.content || x.cas) {
+          const ck = [norm(x.component),norm(x.content),norm(x.cas)].join("|");
+          if (!g.components.some((c)=>[norm(c.name),norm(c.content),norm(c.cas)].join("|")===ck)) g.components.push({name:x.component,content:x.content,cas:x.cas});
+        }
+        for (const k of ["chemical","osh","dangerous"]) g.regulations[k] = [...new Set([...g.regulations[k],...x[k]])];
+        if (x.basis) g.regulations.basis = x.basis;
+        if (x.physicalState) g.regulations.physical_state = x.physicalState;
+        if (x.confirmed) { g.regulations.confirmed = true; g.regulations.confirmed_at = new Date().toISOString(); }
+        if (x.method) g.regulations.input_method = /PDF 자동입력/.test(x.method) ? "pdf-text" : /스캔/.test(x.method) ? "scanned" : /보안/.test(x.method) ? "secured" : x.method;
+        g.regulations.missing_fields = [...new Set([...g.regulations.missing_fields,...x.missing])];
       });
     return {
       rows: valid,
@@ -2098,12 +2818,18 @@
       const p = state.importPlan,
         locationCount = p.rows.length,
         materialCount = p.groups.length,
-        factoryCount = new Set(p.rows.map((x) => norm(x.factory))).size;
+        factoryCount = new Set(p.rows.map((x) => norm(x.factory))).size,
+        pdfCount = p.groups.filter((x) => x.pdf).length,
+        pendingPdfCount = materialCount - pdfCount;
       $("importSummary").innerHTML =
         '<b>등록 예정</b><div class="summary-grid"><span>공장<strong>' +
         factoryCount +
         "</strong></span><span>물질<strong>" +
         materialCount +
+        "</strong></span><span>PDF 연결<strong>" +
+        pdfCount +
+        "</strong></span><span>PDF 확인 필요<strong>" +
+        pendingPdfCount +
         "</strong></span><span>사용 위치<strong>" +
         locationCount +
         "</strong></span><span>오류<strong>" +
@@ -2125,7 +2851,9 @@
               )
               .join("") +
             "</ul></details>"
-          : "<p>모든 행의 PDF 연결을 확인했습니다.</p>");
+          : "<p>엑셀 행을 확인했습니다." +
+            (pendingPdfCount ? " PDF를 찾지 못한 제품은 PDF 확인 필요로 등록됩니다." : " 모든 제품의 PDF를 연결했습니다.") +
+            "</p>");
       $("importSummary").classList.remove("hidden");
       $("excelImportBtn").classList.toggle("hidden", !p.rows.length);
       toast("등록 내용을 확인했습니다.");
@@ -2139,9 +2867,12 @@
   async function bulkImportExcel() {
     const plan = state.importPlan;
     if (!plan?.rows.length) return;
+    if (state.bulkPdfFiles.some((f)=>f.size>50*1024*1024)) { alert("50MB를 초과한 PDF가 있습니다. 해당 파일을 제외하거나 크기를 줄여 주세요."); return; }
+    const selectedNames = state.bulkPdfFiles.map((f)=>norm(f.name));
+    if (new Set(selectedNames).size !== selectedNames.length) { alert("같은 이름의 PDF가 여러 개 선택되었습니다. 중복 파일을 제외해 주세요."); return; }
     if (!state.notesSupported && plan.rows.some((x) => x.note)) {
       alert(
-        "비고 저장 설정이 필요합니다. VER10 데이터베이스 업데이트를 먼저 실행해 주세요.",
+        "비고 저장 설정이 필요합니다. VER11 데이터베이스 업데이트를 먼저 실행해 주세요.",
       );
       return;
     }
@@ -2168,6 +2899,7 @@
         : null;
       let blob = group.pdf ? pdfMap.get(norm(group.pdf)) || null : null;
       if (!blob && source) blob = await resolveDocBlob(source);
+      if (blob) await enrichBulkGroupFromPdf(group, blob);
       if (DEMO) {
         if (!doc) {
           const id = uid("material");
@@ -2176,6 +2908,8 @@
             factory_id: fid,
             material_name: group.material,
             notes: group.note || "",
+            components: group.components,
+            regulations: group.regulations,
             file_name: blob ? group.pdf : "__NO_PDF__" + id,
             storage_path: blob
               ? "demo/" + fid + "/" + group.pdf
@@ -2187,7 +2921,11 @@
           };
           state.documents.push(doc);
           materials++;
-        } else doc.notes = group.note || "";
+        } else {
+          if (group.note) doc.notes = group.note;
+          if (group.components.length) doc.components = group.components;
+          if (regulationHasValues(group.regulations)) doc.regulations = group.regulations;
+        }
         if (blob) {
           doc.file_name = group.pdf;
           doc.storage_path = "demo/" + fid + "/" + group.pdf;
@@ -2219,6 +2957,7 @@
                 factory_id: fid,
                 material_name: group.material,
                 ...(state.notesSupported ? { notes: group.note || "" } : {}),
+                ...(state.metadataSupported ? { components:group.components, regulations:group.regulations } : {}),
                 file_name: fileName,
                 storage_path: path,
                 size_bytes: blob?.size || 0,
@@ -2229,13 +2968,15 @@
           doc = rows?.[0] || { id };
           materials++;
         } else {
-          if (state.notesSupported)
+          if (state.notesSupported || state.metadataSupported)
             await api(
               "/rest/v1/documents?id=eq." + encodeURIComponent(doc.id),
               {
                 method: "PATCH",
                 body: JSON.stringify({
-                  notes: group.note || "",
+                  ...(state.notesSupported && group.note ? {notes:group.note} : {}),
+                  ...(state.metadataSupported && group.components.length ? {components:group.components} : {}),
+                  ...(state.metadataSupported && regulationHasValues(group.regulations) ? {regulations:group.regulations} : {}),
                   updated_at: new Date().toISOString(),
                 }),
               },
@@ -2258,15 +2999,14 @@
             );
           }
         }
+        const linkedEquipmentIds = new Set((doc.locations || []).map((x) => x.equipment_id));
         for (const u of uses) {
-          await api(
-            "/rest/v1/document_locations?on_conflict=document_id,equipment_id",
-            {
-              method: "POST",
-              headers: { Prefer: "resolution=ignore-duplicates" },
-              body: JSON.stringify([{ document_id: doc.id, ...u }]),
-            },
-          );
+          if (linkedEquipmentIds.has(u.equipment_id)) continue;
+          await api("/rest/v1/document_locations", {
+            method: "POST",
+            body: JSON.stringify([{ document_id: doc.id, ...u }]),
+          });
+          linkedEquipmentIds.add(u.equipment_id);
           locations++;
         }
       }
@@ -2298,12 +3038,20 @@
     renderHierarchy();
     renderDocuments();
     renderUsageRows();
+    renderComponentRows();
+    renderRegulatoryDashboard();
     renderManage();
     renderDataSelects();
   }
   async function saveEditedDocumentSafely(e) {
     e.preventDefault();
     e.stopImmediatePropagation();
+    if (state.isEditing) return;
+    state.isEditing = true;
+    const saveBtn = $("editDocumentSaveBtn");
+    saveBtn.disabled = true;
+    saveBtn.textContent = "저장 중…";
+    try {
     const d = state.documents.find((x) => x.id === state.editDocumentId);
     if (!DEMO && d) {
       const latest = await api(
@@ -2326,6 +3074,11 @@
       }
     }
     await saveEditedDocument(e);
+    } finally {
+      state.isEditing = false;
+      saveBtn.disabled = false;
+      saveBtn.textContent = "수정 저장";
+    }
   }
   $("editDocumentForm").addEventListener(
     "submit",
@@ -2388,6 +3141,39 @@
     }
   });
   document.addEventListener("click", async (e) => {
+    const reg = e.target.closest("[data-reg-key]");
+    if (reg) {
+      state.regPath.push(reg.dataset.regKey);
+      renderRegulatoryDashboard();
+      return;
+    }
+    const regDoc = e.target.closest("[data-open-reg-doc]");
+    if (regDoc) {
+      const d = state.documents.find((x) => x.id === regDoc.dataset.openRegDoc);
+      if (d) {
+        state.regPath = [];
+        state.statusFilter = "";
+        $("searchInput").value = d.material_name;
+        renderRegulatoryDashboard();
+        renderDocuments();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+      return;
+    }
+    const removeComponent = e.target.closest("[data-remove-component]");
+    if (removeComponent) {
+      state.draftComponents = state.draftComponents.filter(
+        (x) => x.id !== removeComponent.dataset.removeComponent,
+      );
+      renderComponentRows();
+      return;
+    }
+    const editRemoveComponent = e.target.closest("[data-edit-remove-component]");
+    if (editRemoveComponent) {
+      state.editComponents = state.editComponents.filter((x) => x.id !== editRemoveComponent.dataset.editRemoveComponent);
+      renderEditComponentRows();
+      return;
+    }
     const browse = e.target.closest("[data-browse-level]");
     if (browse) {
       selectBrowse(browse.dataset.browseLevel, browse.dataset.browseId);
@@ -2447,8 +3233,13 @@
     }
     const rf = e.target.closest("[data-remove-file]");
     if (rf) {
-      state.files.splice(Number(rf.dataset.removeFile), 1);
+      state.analysisRun++;
+      state.isAnalyzing = false;
+      state.files = [];
       renderSelectedFiles();
+      $("analyzePdfBtn").disabled = !state.files.length;
+      $("saveDocumentsBtn").disabled = false;
+      if (!state.files.length) $("analysisStatus").classList.add("hidden");
       return;
     }
     const sel = e.target.closest("[data-select-type]");
@@ -2510,6 +3301,19 @@
     }
     if (s.dataset.field === "equipment_id") u.process_id = "";
     renderUsageRows();
+    updateExistingNotice();
+  });
+  $("componentList").addEventListener("input", (e) => {
+    const el = e.target.closest("[data-component]");
+    if (!el) return;
+    const c = state.draftComponents.find((x) => x.id === el.dataset.component);
+    if (c) c[el.dataset.componentField] = el.value;
+  });
+  $("editComponentList").addEventListener("input", (e) => {
+    const el = e.target.closest("[data-edit-component]");
+    if (!el) return;
+    const c = state.editComponents.find((x) => x.id === el.dataset.editComponent);
+    if (c) c[el.dataset.componentField] = el.value;
   });
   $("editUsageList").addEventListener("change", (e) => {
     const s = e.target.closest("[data-edit-use]");
@@ -2548,11 +3352,26 @@
       renderEditUsageRows();
     }
   });
+  $("editAddComponentBtn").addEventListener("click", () => {
+    state.editComponents.push(emptyComponent());
+    renderEditComponentRows();
+  });
   $("addUsageBtn").addEventListener("click", () => {
     state.draftUses.push(emptyUse());
     renderUsageRows();
   });
+  $("addComponentBtn").addEventListener("click", () => {
+    state.draftComponents.push(emptyComponent());
+    renderComponentRows();
+  });
+  $("materialName").addEventListener("change", () => { applyCatalogToForm(); updateExistingNotice(); });
+  $("materialName").addEventListener("input", updateExistingNotice);
+  $("regBackBtn").addEventListener("click", () => {
+    state.regPath.pop();
+    renderRegulatoryDashboard();
+  });
   $("pdfInput").addEventListener("change", (e) => addFiles(e.target.files));
+  $("analyzePdfBtn").addEventListener("click", analyzeSelectedPdf);
   $("dropzone").addEventListener("dragover", (e) => {
     e.preventDefault();
     $("dropzone").classList.add("drag");
