@@ -1,5 +1,5 @@
 window.FCT_CONFIG = {
-  VERSION: 'VER12_rev.1',
+  VERSION: 'VER12_rev.2',
   DEMO_MODE: false,
   SUPABASE_URL: 'https://clmcenjnujrtuyjwrnim.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable_5M5AKe4S5Rq2A8UBwoJPNQ_Cs6atlgj',

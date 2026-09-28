@@ -43,6 +43,9 @@
   };
   let layoutLocked = Boolean(localStorage.getItem("fct-layout-mode"));
   let toastTimer = null;
+  let pdfRenderRun = 0;
+  let activePdfTask = null;
+  let activePdfDocument = null;
 
   const REGULATORY_CATALOG = {
     toluene: {
@@ -596,20 +599,19 @@
       : '<span class="review-state pending">자동입력 · 확인 필요</span>';
   }
   function regulationBadges(doc) {
-    const g = regulationGroups(doc),
-      labels = [
-        ...g.chemical,
-        ...g.osh,
-        ...(g.dangerous.length ? ["위험물"] : []),
-      ];
-    return labels.length
+    const g = regulationGroups(doc), grouped = [
+      ...g.chemical.map((label) => ({ label, group: "chemical" })),
+      ...g.osh.map((label) => ({ label, group: "osh" })),
+      ...(g.dangerous.length ? [{ label: "위험물", group: "dangerous" }] : []),
+    ];
+    return grouped.length
       ? '<span class="reg-badges">' +
-          labels
+          grouped
             .slice(0, 4)
-            .map((x) => "<em>" + esc(x) + "</em>")
+            .map((x) => '<em class="reg-' + x.group + '">' + esc(x.label) + "</em>")
             .join("") +
-          (labels.length > 4
-            ? "<em>외 " + (labels.length - 4) + "개</em>"
+          (grouped.length > 4
+            ? '<em class="reg-more">외 ' + (grouped.length - 4) + "개</em>"
             : "") +
           "</span>"
       : "";
@@ -662,8 +664,10 @@
       const basis = decisions.map((x) => `${component.name || component.cas} ${range.raw || "함량 미입력"} ${x.operator} ${x.threshold}% 기준 → ${x.status === "applicable" ? "해당" : x.status === "not-applicable" ? "비해당" : "확인 필요"}`).join(" · ") + (hasOtherCandidates ? " · 다른 규제 후보는 성분별 확인 필요" : "");
       return { status, decisions, basis };
     }
-    const explicitLabels = [...(explicit.chemical || []), ...(explicit.osh || []), ...(explicit.dangerous || [])];
-    if (explicitLabels.length) return { status: "applicable", decisions: explicitLabels.map((label) => ({ label, group: "explicit", status: "applicable" })), basis: explicit.basis || "관리자 확인 입력" };
+    const explicitDecisions = ["chemical", "osh", "dangerous"].flatMap((group) =>
+      (explicit[group] || []).map((label) => ({ label, group, status: "applicable" })),
+    );
+    if (explicitDecisions.length) return { status: "applicable", decisions: explicitDecisions, basis: explicit.basis || "MSDS 제15항 성분별 연결" };
     return { status: "review", decisions: [], basis: !component.cas || !range.valid ? "CAS No. 또는 함량 확인 필요" : "해당 성분의 최신 법적 기준 연결 필요" };
   }
   function ingredientRows(items = state.documents.filter((d) => d.locations?.length)) {
@@ -703,7 +707,7 @@
   function regulatoryStats(items = state.documents) {
     const defs = {
       chemical: {
-        label: "유해화학물질",
+        label: "화학물질관리법",
         children: [
           "인체급성유해성물질",
           "인체만성유해성물질",
@@ -749,7 +753,7 @@
       crumb = $("regBreadcrumb");
     if (!box) return;
     const labels = {
-      chemical: "유해화학물질",
+      chemical: "화학물질관리법",
       osh: "산업안전보건법 대상",
       dangerous: "위험물",
     };
@@ -764,7 +768,7 @@
       box.innerHTML = stats
         .map(
           (x) =>
-            '<button type="button" data-reg-key="' +
+            '<button type="button" class="reg-group reg-group-' + esc(state.regPath[0] || x.key) + '" data-reg-key="' +
             esc(x.key) +
             '"><span>' +
             esc(x.label) +
@@ -1553,24 +1557,13 @@
           const stateMatch = compact.match(/(?:물리적\s*상태|성상)\s*[:：]?\s*(액체|고체|기체)/i);
           if (stateMatch) group.regulations.physical_state = stateMatch[1];
         }
-        const known = [
-          ["인체급성유해성물질", "chemical"],
-          ["인체만성유해성물질", "chemical"],
-          ["생태유해성물질", "chemical"],
-          ["사고대비물질", "chemical"],
-          ["관리대상 유해물질", "osh"],
-          ["특별관리물질", "osh"],
-          ["작업환경측정 대상", "osh"],
-          ["특수건강진단 대상", "osh"],
-        ];
-        known.forEach(([label, bucket]) => {
-          if (text.replace(/\s/g, "").includes(label.replace(/\s/g, "")))
-            group.regulations[bucket] = [...new Set([...group.regulations[bucket], label])];
+        const parsedRegulations = pdfData.parsed.regulations || { chemical: [], osh: [], dangerous: [] };
+        ["chemical", "osh", "dangerous"].forEach((bucket) => {
+          group.regulations[bucket] = [...new Set([
+            ...(group.regulations[bucket] || []),
+            ...(parsedRegulations[bucket] || []),
+          ])];
         });
-        if (/제\s*4\s*류|제1\s*석유류|위험물안전관리법/.test(text))
-          group.regulations.dangerous = [
-            ...new Set([...group.regulations.dangerous, "제4류 인화성액체(세부 품명 확인 필요)"]),
-          ];
         group.regulations.input_method = "pdf-text";
         if (!group.components.length && !pdfData.parsed.noListedComponents)
           ["화학물질명", "함량", "CAS No."].forEach((x) => missing.add(x));
@@ -1606,9 +1599,10 @@
       if (catalogFor($("materialName").value)) applyCatalogToForm(Boolean(comps.length));
       const stateMatch = compact.match(/(?:물리적\s*상태|성상)\s*[:：]?\s*(액체|고체|기체)/i);
       if (stateMatch) $("physicalState").value = stateMatch[1];
-      const known=[["인체급성유해성물질","regChemical"],["인체만성유해성물질","regChemical"],["생태유해성물질","regChemical"],["사고대비물질","regChemical"],["관리대상 유해물질","regOsh"],["특별관리물질","regOsh"],["작업환경측정 대상","regOsh"],["특수건강진단 대상","regOsh"]];
-      known.forEach(([label,name])=>{if(text.replace(/\s/g,"").includes(label.replace(/\s/g,""))){const el=[...document.querySelectorAll('input[name="'+name+'"]')].find(x=>x.value===label);if(el)el.checked=true;}});
-      if (/제\s*4\s*류|제1\s*석유류|위험물안전관리법/.test(text)) { $("regDangerous").checked=true; if(!$("dangerousClass").value)$("dangerousClass").value="제4류 인화성액체(세부 품명 확인 필요)"; }
+      const parsedRegulations = pdfData.parsed.regulations || {chemical:[],osh:[],dangerous:[]};
+      document.querySelectorAll('input[name="regChemical"]').forEach((el)=>{if(parsedRegulations.chemical.includes(el.value))el.checked=true;});
+      document.querySelectorAll('input[name="regOsh"]').forEach((el)=>{if(parsedRegulations.osh.includes(el.value))el.checked=true;});
+      if (parsedRegulations.dangerous.length) { $("regDangerous").checked=true; $("dangerousClass").value=parsedRegulations.dangerous[0]; }
       const noListed = Boolean(pdfData.parsed.noListedComponents);
       const reviewRequired = Boolean(pdfData.parsed.reviewRequired);
       const regulationCandidates = selectedValues("regChemical").length+selectedValues("regOsh").length+($("regDangerous").checked?1:0)>0;
@@ -2103,6 +2097,86 @@
           "/" +
           doc.storage_path.split("/").map(encodeURIComponent).join("/");
   }
+  function shouldUseMobilePdfViewer() {
+    return (
+      document.body.classList.contains("mode-mobile") ||
+      window.matchMedia("(max-width:760px)").matches ||
+      /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+    );
+  }
+  function cleanupPdfViewer() {
+    pdfRenderRun += 1;
+    $("pdfFrame").src = "about:blank";
+    $("pdfFrame").classList.remove("hidden");
+    $("pdfCanvasViewer").classList.add("hidden");
+    $("pdfPages").replaceChildren();
+    $("pdfLoading").classList.remove("hidden", "error");
+    $("pdfLoading").textContent = "PDF를 휴대폰 화면에 맞추는 중입니다.";
+    try {
+      activePdfTask?.destroy?.();
+      activePdfDocument?.destroy?.();
+    } catch (_) {}
+    activePdfTask = null;
+    activePdfDocument = null;
+  }
+  async function renderMobilePdf(url) {
+    const run = ++pdfRenderRun;
+    const frame = $("pdfFrame"),
+      viewer = $("pdfCanvasViewer"),
+      loading = $("pdfLoading"),
+      pages = $("pdfPages");
+    frame.classList.add("hidden");
+    viewer.classList.remove("hidden");
+    pages.replaceChildren();
+    loading.classList.remove("hidden", "error");
+    loading.textContent = "PDF를 휴대폰 화면에 맞추는 중입니다.";
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("PDF 파일을 불러오지 못했습니다.");
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      if (run !== pdfRenderRun) return;
+      const pdfjs = await import("./vendor/pdf.min.mjs");
+      pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
+      activePdfTask = pdfjs.getDocument({ data: bytes });
+      const pdf = await activePdfTask.promise;
+      if (run !== pdfRenderRun) {
+        pdf.destroy();
+        return;
+      }
+      activePdfDocument = pdf;
+      loading.textContent = `총 ${pdf.numPages}쪽을 화면 너비에 맞추는 중입니다.`;
+      const cssWidth = Math.max(260, Math.floor(viewer.clientWidth - 16));
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.65);
+      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+        if (run !== pdfRenderRun) return;
+        const page = await pdf.getPage(pageNumber);
+        const base = page.getViewport({ scale: 1 });
+        const cssScale = cssWidth / base.width;
+        const viewport = page.getViewport({ scale: cssScale * pixelRatio });
+        const sheet = document.createElement("section");
+        sheet.className = "pdf-sheet";
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.ceil(viewport.width);
+        canvas.height = Math.ceil(viewport.height);
+        canvas.style.width = cssWidth + "px";
+        canvas.style.height = Math.round(base.height * cssScale) + "px";
+        canvas.setAttribute("aria-label", `PDF ${pageNumber}쪽`);
+        const pageLabel = document.createElement("small");
+        pageLabel.textContent = `${pageNumber} / ${pdf.numPages}`;
+        sheet.append(canvas, pageLabel);
+        pages.append(sheet);
+        await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+        page.cleanup();
+      }
+      if (run === pdfRenderRun) loading.classList.add("hidden");
+    } catch (error) {
+      if (run !== pdfRenderRun) return;
+      loading.classList.add("error");
+      loading.textContent = "휴대폰 맞춤 보기를 불러오지 못했습니다. 전체화면 버튼으로 열어 주세요.";
+      frame.src = url + "#toolbar=1&navpanes=0&view=FitH&zoom=page-width";
+      frame.classList.remove("hidden");
+    }
+  }
   async function openDocument(id) {
     const d = state.documents.find((x) => x.id === id);
     if (!d || !hasPdf(d)) {
@@ -2122,8 +2196,13 @@
     $("pdfOpenNative").href = url;
     $("pdfDownload").href = url;
     $("pdfDownload").download = shownFileName(d);
-    $("pdfFrame").src = url + "#toolbar=1&navpanes=0&view=FitH";
+    cleanupPdfViewer();
     $("pdfDialog").showModal();
+    if (shouldUseMobilePdfViewer()) {
+      requestAnimationFrame(() => renderMobilePdf(url));
+    } else {
+      $("pdfFrame").src = url + "#toolbar=1&navpanes=0&view=FitH&zoom=page-width";
+    }
   }
   async function downloadDocument(id) {
     const d = state.documents.find((x) => x.id === id);
@@ -2202,7 +2281,7 @@
     }
     downloadBlob(
       await zip.generateAsync({ type: "blob" }),
-      "FCT_MSDS_전체PDF_VER12_rev.1.zip",
+      "FCT_MSDS_전체PDF_VER12_rev.2.zip",
     );
   }
 
@@ -2605,7 +2684,7 @@
       );
     downloadBlob(
       await workbookBlob(rows),
-      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER12_rev.1.xlsx",
+      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER12_rev.2.xlsx",
     );
   }
   function parseCsv(text) {
@@ -3448,7 +3527,7 @@
     renderEditUsageRows();
   });
   $("pdfDialog").addEventListener("close", () => {
-    $("pdfFrame").src = "about:blank";
+    cleanupPdfViewer();
   });
   $("adminEntryBtn").addEventListener("click", openLogin);
   $("mobileAdminBtn").addEventListener("click", openLogin);
@@ -3523,7 +3602,7 @@
   );
   $("pdfClose").addEventListener("click", () => {
     $("pdfDialog").close();
-    $("pdfFrame").src = "about:blank";
+    cleanupPdfViewer();
   });
   $("adminDownloadAllBtn").addEventListener("click", () =>
     zipAll().catch((e) => toast(e.message)),
