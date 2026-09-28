@@ -458,7 +458,7 @@ a:focus-visible {
 }
 .component-row {
   display: grid;
-  grid-template-columns: 1.35fr .7fr .85fr .8fr 1.3fr 40px;
+  grid-template-columns: 1.35fr .7fr .85fr .8fr 40px;
   gap: 8px;
 }
 .component-row input,
@@ -470,6 +470,42 @@ a:focus-visible {
   padding: 10px;
   background: #fff;
 }
+.component-criteria {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 5px;
+  padding: 9px 10px;
+  border: 1px solid #c9d8ec;
+  border-radius: 6px;
+  background: #f6f9fd;
+}
+.component-criteria:empty { display: none; }
+.component-criteria > b { color: var(--navy); font-size: .75rem; }
+.criterion {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.2fr) minmax(150px, 1fr) minmax(100px, .7fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border-left: 4px solid #7c3aed;
+  background: #fff;
+  font-size: .72rem;
+}
+.criterion.osh { border-left-color: #1565c0; }
+.criterion.dangerous { border-left-color: #d14900; }
+.criterion strong { color: var(--navy); }
+.criterion em {
+  justify-self: end;
+  padding: 3px 7px;
+  border-radius: 10px;
+  background: #e9f7ef;
+  color: #087a43;
+  font-style: normal;
+  font-weight: 800;
+}
+.criterion em.review { background: #fff2d8; color: #9a5b00; }
+.criterion em.not-applicable { background: #edf1f6; color: #526074; }
+.criteria-empty { color: var(--muted); font-size: .72rem; }
 .reg-input-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1145,6 +1181,16 @@ dialog header button {
   .component-row {
     grid-template-columns: 1fr 1fr;
   }
+  .component-criteria {
+    grid-column: 1 / -1;
+  }
+  .criterion {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+  .criterion em {
+    justify-self: start;
+  }
   .component-row .usage-remove {
     grid-column: 2;
   }
@@ -1593,7 +1639,7 @@ body.mode-mobile .stats {
   grid-template-columns: 1fr 1fr;
 }
 body.mode-pc .status-dashboard {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 body.mode-mobile .head-actions {
   margin-left: 0;
