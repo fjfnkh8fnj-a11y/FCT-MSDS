@@ -38,6 +38,8 @@
     isAnalyzing: false,
     isSaving: false,
     isEditing: false,
+    reviewQueue: [],
+    reviewIndex: 0,
   };
   let layoutLocked = Boolean(localStorage.getItem("fct-layout-mode"));
   let toastTimer = null;
@@ -209,6 +211,14 @@
         d.storage_path &&
         !String(d.storage_path).startsWith("unattached/"),
     );
+  function findCanonicalDocument(materialName) {
+    return state.documents
+      .filter((d) => norm(d.material_name) === norm(materialName))
+      .sort((a, b) =>
+        ((b.locations?.length || 0) * 100 + (hasPdf(b) ? 20 : 0) + (b.components?.length || 0)) -
+        ((a.locations?.length || 0) * 100 + (hasPdf(a) ? 20 : 0) + (a.components?.length || 0)),
+      )[0];
+  }
   const shownFileName = (d) => (hasPdf(d) ? d.file_name : "");
   const dateText = (v) => (v ? new Date(v).toLocaleDateString("ko-KR") : "-");
   function toast(msg) {
@@ -604,6 +614,92 @@
           "</span>"
       : "";
   }
+  function contentRange(value) {
+    const raw = String(value || "").replace(/,/g, ".").replace(/％/g, "%").trim();
+    if (!raw || /영업비밀|secret/i.test(raw)) return { valid: false, raw };
+    const nums = [...raw.matchAll(/\d+(?:\.\d+)?/g)].map((m) => Number(m[0]));
+    if (!nums.length || nums.some((n) => n > 100)) return { valid: false, raw };
+    if (/^(?:<|미만)/.test(raw)) return { valid: true, min: 0, max: nums[0], maxInclusive: false, raw };
+    if (/^(?:<=|≤|이하)/.test(raw)) return { valid: true, min: 0, max: nums[0], maxInclusive: true, raw };
+    if (/^(?:>|초과)/.test(raw)) return { valid: true, min: nums[0], max: 100, minInclusive: false, raw };
+    if (/^(?:>=|≥|이상)/.test(raw)) return { valid: true, min: nums[0], max: 100, minInclusive: true, raw };
+    if (nums.length > 1) return { valid: true, min: Math.min(nums[0], nums[1]), max: Math.max(nums[0], nums[1]), minInclusive: !/(?:^|[-~])\s*</.test(raw), maxInclusive: !/<\s*\d/.test(raw), raw };
+    return { valid: true, min: nums[0], max: nums[0], minInclusive: true, maxInclusive: true, raw };
+  }
+  const LEGAL_RULES = {
+    "108-88-3": [
+      { group: "chemical", label: "사고대비물질", operator: ">=", threshold: 85, source: "사고대비물질 지정기준(톨루엔 85% 이상 함유 혼합물)" },
+    ],
+  };
+  function compareRange(range, rule) {
+    if (!range.valid) return "review";
+    const t = rule.threshold;
+    if (rule.operator === ">=") {
+      if (range.min >= t) return "applicable";
+      if (range.max < t || (range.max === t && range.maxInclusive === false)) return "not-applicable";
+      return "review";
+    }
+    if (rule.operator === ">") {
+      if (range.min > t || (range.min === t && range.minInclusive === false)) return "applicable";
+      if (range.max <= t) return "not-applicable";
+      return "review";
+    }
+    return "review";
+  }
+  function componentAssessment(doc, component) {
+    const explicit = component.regulations || {},
+      rules = LEGAL_RULES[String(component.cas || "").trim()] || [],
+      range = contentRange(component.content),
+      decisions = rules.map((rule) => ({ ...rule, status: compareRange(range, rule) }));
+    if (component.legal_status === "not-applicable") return { status: "not-applicable", decisions: [], basis: component.legal_basis || "관리자 비해당 확인" };
+    if (component.legal_status === "applicable") {
+      const groups = regulationGroups(doc), manual = Object.entries(groups).flatMap(([group, labels]) => labels.map((label) => ({ group, label, status: "applicable" })));
+      return { status: "applicable", decisions: manual, basis: component.legal_basis || metadataFor(doc).regulations.basis || "관리자 해당 확인" };
+    }
+    if (decisions.length) {
+      const productLabels = Object.values(regulationGroups(doc)).flat(), knownLabels = new Set(decisions.map((x) => x.label)), hasOtherCandidates = productLabels.some((x) => !knownLabels.has(x));
+      const status = decisions.some((x) => x.status === "review") || hasOtherCandidates ? "review" : decisions.some((x) => x.status === "applicable") ? "applicable" : "not-applicable";
+      const basis = decisions.map((x) => `${component.name || component.cas} ${range.raw || "함량 미입력"} ${x.operator} ${x.threshold}% 기준 → ${x.status === "applicable" ? "해당" : x.status === "not-applicable" ? "비해당" : "확인 필요"}`).join(" · ") + (hasOtherCandidates ? " · 다른 규제 후보는 성분별 확인 필요" : "");
+      return { status, decisions, basis };
+    }
+    const explicitLabels = [...(explicit.chemical || []), ...(explicit.osh || []), ...(explicit.dangerous || [])];
+    if (explicitLabels.length) return { status: "applicable", decisions: explicitLabels.map((label) => ({ label, group: "explicit", status: "applicable" })), basis: explicit.basis || "관리자 확인 입력" };
+    return { status: "review", decisions: [], basis: !component.cas || !range.valid ? "CAS No. 또는 함량 확인 필요" : "해당 성분의 최신 법적 기준 연결 필요" };
+  }
+  function ingredientRows(items = state.documents.filter((d) => d.locations?.length)) {
+    const map = new Map();
+    items.forEach((doc) => {
+      const components = metadataFor(doc).components || [];
+      components.forEach((component) => {
+        const key = component.cas && !/영업비밀/i.test(component.cas) ? `cas:${norm(component.cas)}` : `name:${norm(component.name)}`;
+        if (!map.has(key)) map.set(key, { key, name: component.name || "성분명 확인 필요", cas: component.cas || "-", products: new Map(), contents: new Set(), locations: new Map(), assessments: [] });
+        const row = map.get(key), assessment = componentAssessment(doc, component);
+        row.products.set(doc.id, doc);
+        row.contents.add(component.content || "미입력");
+        (doc.locations || []).forEach((l) => row.locations.set(l.equipment_id, l));
+        row.assessments.push({ ...assessment, doc, component });
+      });
+    });
+    return [...map.values()].map((row) => {
+      const applicable = row.assessments.flatMap((x) => x.decisions || []).filter((x) => x.status === "applicable"),
+        hasReview = row.assessments.some((x) => x.status === "review"),
+        allNot = row.assessments.length && row.assessments.every((x) => x.status === "not-applicable");
+      return { ...row, applicable, status: hasReview ? "review" : applicable.length ? "applicable" : allNot ? "not-applicable" : "review" };
+    }).sort((a, b) => a.name.localeCompare(b.name, "ko"));
+  }
+  function pendingRegulationDocuments() {
+    return state.documents.filter((d) => d.locations?.length).filter((d) => {
+      const m = metadataFor(d), components = m.components || [];
+      return !m.regulations?.confirmed || !components.length || components.some((c) => componentAssessment(d, c).status === "review");
+    });
+  }
+  function startRegulationReview(firstId = "") {
+    state.reviewQueue = pendingRegulationDocuments().map((d) => d.id);
+    state.reviewIndex = Math.max(0, state.reviewQueue.indexOf(firstId));
+    const id = state.reviewQueue[state.reviewIndex];
+    if (id) openEditDocument(id);
+    else toast("확인 필요한 제품이 없습니다.");
+  }
   function regulatoryStats(items = state.documents) {
     const defs = {
       chemical: {
@@ -629,18 +725,11 @@
         children: ["제1류", "제2류", "제3류", "제4류", "제5류", "제6류"],
       },
     };
-    const level = state.regPath[0],
+    const ingredients = ingredientRows(items), level = state.regPath[0],
       detail = state.regPath[1];
     const make = (key, label, matcher) => {
-      const docs = items.filter((d) =>
-        matcher(regulationGroups(d)[level || key] || []),
-      );
-      const cas = new Set(
-        docs
-          .flatMap((d) => metadataFor(d).components.map((c) => c.cas))
-          .filter(Boolean),
-      );
-      return { key, label, products: docs.length, ingredients: cas.size, pending: docs.filter((d)=>!metadataFor(d).regulations.confirmed).length };
+      const rows = ingredients.filter((row) => row.assessments.some((a) => matcher((a.decisions || []).filter((x) => x.status === "applicable" && x.group === (level || key)).map((x) => x.label))));
+      return { key, label, products: new Set(rows.flatMap((r) => [...r.products.keys()])).size, ingredients: rows.length, pending: rows.filter((r) => r.status === "review").length };
     };
     if (!level)
       return Object.entries(defs).map(([k, v]) =>
@@ -669,7 +758,8 @@
       ...state.regPath.map((x) => labels[x] || x),
     ].join(" › ");
     back.classList.toggle("hidden", !state.regPath.length);
-    const stats = regulatoryStats();
+    const pending = pendingRegulationDocuments(), stats = regulatoryStats();
+    if ($("regReviewSummary")) $("regReviewSummary").textContent = `확인 필요 ${pending.length}개 제품`;
     if (stats.length) {
       box.innerHTML = stats
         .map(
@@ -687,39 +777,27 @@
             "</button>",
         )
         .join("");
+      renderIngredientDashboard();
       return;
     }
     const level = state.regPath[0],
       detail = state.regPath[1];
-    const docs = state.documents.filter((d) =>
-      (regulationGroups(d)[level] || []).some(
-        (v) => v.includes(detail) || detail.includes(String(v).split("(")[0]),
-      ),
-    );
-    box.innerHTML = docs.length
-      ? docs
-          .map((d) => {
-            const m = metadataFor(d);
-            return (
-              '<article class="reg-product"><b>' +
-              esc(d.material_name) +
-              regulationReviewLabel(d) +
-              "</b><span>" +
-              m.components
-                .map(
-                  (c) =>
-                    esc(c.name) + " · " + esc(c.content) + " · " + esc(c.cas),
-                )
-                .join("<br>") +
-              "</span><small>" +
-              esc(m.regulations.basis || "판정 근거 확인 필요") +
-              '</small><button class="btn btn-light btn-small" data-open-reg-doc="' +
-              esc(d.id) +
-              '">사용처 보기</button></article>'
-            );
-          })
-          .join("")
-      : '<div class="reg-empty">해당 제품이 없습니다.</div>';
+    box.innerHTML = "";
+    renderIngredientDashboard();
+  }
+  function renderIngredientDashboard() {
+    const target = $("ingredientDashboard");
+    if (!target) return;
+    const q = norm($("regSearchInput")?.value), status = $("regStatusFilter")?.value || "", level = state.regPath[0], detail = state.regPath[1];
+    let rows = ingredientRows();
+    if (q) rows = rows.filter((r) => norm([r.name, r.cas, ...[...r.products.values()].map((d) => d.material_name)].join(" ")).includes(q));
+    if (status) rows = rows.filter((r) => r.status === status);
+    if (level) rows = rows.filter((r) => r.assessments.some((a) => (a.decisions || []).some((d) => d.status === "applicable" && d.group === level && (!detail || d.label.includes(detail) || detail.includes(d.label)))));
+    const statusLabel = { applicable: "해당", "not-applicable": "비해당", review: "확인 필요" };
+    target.innerHTML = rows.length ? '<div class="ingredient-head"><b>성분별 규제현황</b><span>'+rows.length+'개 성분</span></div><div class="ingredient-list">' + rows.map((r) => {
+      const docs = [...r.products.values()], firstReview = docs.find((d) => pendingRegulationDocuments().some((x) => x.id === d.id));
+      return '<article class="ingredient-row"><div class="ingredient-main"><b>'+esc(r.name)+'</b><span>CAS No. '+esc(r.cas)+' · 함량 '+esc([...r.contents].join(", "))+'</span></div><span class="decision '+r.status+'">'+statusLabel[r.status]+'</span><div class="ingredient-products"><b>'+docs.length+'개 제품</b><span>'+docs.map((d)=>esc(d.material_name)).join(", ")+'</span><small>사용처 '+r.locations.size+'곳</small></div><div class="ingredient-basis">'+esc(r.assessments.map((a)=>a.basis).filter(Boolean)[0] || "판정 근거 확인 필요")+'</div>'+(state.admin && firstReview?'<button class="btn btn-blue btn-small" data-review-doc="'+esc(firstReview.id)+'">확인·수정</button>':'')+'</article>';
+    }).join("") + '</div>' : '<div class="reg-empty">조건에 맞는 성분이 없습니다.</div>';
   }
 
   function setLayoutMode(mode, persist = false) {
@@ -749,6 +827,7 @@
     if (name === "upload") renderUsageRows();
     if (name === "data") renderDataSelects();
     if (name === "regulations") renderRegulatoryDashboard();
+    else if ($("regSearchInput")) $("regSearchInput").value = "";
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function applyAdminUi() {
@@ -773,6 +852,7 @@
     )
       switchView("browse");
     renderDocuments();
+    renderRegulatoryDashboard();
   }
   function openLogin() {
     $("loginError").textContent = "";
@@ -840,8 +920,6 @@
       .filter(
         (d) =>
           (!q || searchableText(d).includes(q)) &&
-          (!state.browse.factory_id ||
-            d.factory_id === state.browse.factory_id) &&
           (state.statusFilter !== "pdf-missing" || !hasPdf(d)) &&
           (state.statusFilter !== "pdf-ready" || hasPdf(d)),
       )
@@ -853,6 +931,7 @@
   }
   function selectBrowse(level, id) {
     state.statusFilter = "";
+    $("searchInput").value = "";
     if (level === "factory") {
       state.browse = {
         factory_id: id,
@@ -1030,6 +1109,7 @@
     switchView("upload");
   }
   function showStatus(kind) {
+    $("searchInput").value = "";
     state.browse = {
       factory_id: "",
       department_id: "",
@@ -1049,16 +1129,18 @@
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function renderDocuments() {
-    const list = browseGroups(),
+    const activeDocuments = state.documents.filter((d) => d.locations?.length),
+      list = browseGroups(),
       noMaterial = emptyEquipments(),
-      pdfReady = state.documents.filter(hasPdf).length,
-      pdfMissing = state.documents.length - pdfReady;
+      pdfReady = activeDocuments.filter(hasPdf).length,
+      pdfMissing = activeDocuments.length - pdfReady;
     $("statDepartments").textContent = allDepartments().length;
     $("statEquipments").textContent = allEquipments().length;
-    $("statMaterials").textContent = state.documents.length;
+    $("statMaterials").textContent = activeDocuments.length;
     $("statNoMaterial").textContent = noMaterial.length;
     $("statPdfReady").textContent = pdfReady;
     $("statPdfMissing").textContent = pdfMissing;
+    $("statRegReview").textContent = pendingRegulationDocuments().length;
     document
       .querySelectorAll("[data-status]")
       .forEach((x) =>
@@ -1314,7 +1396,7 @@
       .join("");
   }
   function emptyComponent() {
-    return { id: uid("component"), name: "", content: "", cas: "" };
+    return { id: uid("component"), name: "", content: "", cas: "", legal_status: "", legal_basis: "" };
   }
   function renderComponentRows() {
     if (!state.draftComponents.length)
@@ -1334,7 +1416,7 @@
           esc(c.id) +
           '" data-component-field="cas" value="' +
           esc(c.cas) +
-          '" placeholder="CAS No."><button type="button" class="usage-remove" data-remove-component="' +
+          '" placeholder="CAS No."><select data-component="' + esc(c.id) + '" data-component-field="legal_status"><option value=""'+(!c.legal_status?' selected':'')+'>자동판정</option><option value="applicable"'+(c.legal_status==='applicable'?' selected':'')+'>해당</option><option value="not-applicable"'+(c.legal_status==='not-applicable'?' selected':'')+'>비해당</option><option value="review"'+(c.legal_status==='review'?' selected':'')+'>확인 필요</option></select><input data-component="'+esc(c.id)+'" data-component-field="legal_basis" value="'+esc(c.legal_basis||'')+'" placeholder="성분별 판정근거"><button type="button" class="usage-remove" data-remove-component="' +
           esc(c.id) +
           '" ' +
           (state.draftComponents.length === 1 ? "disabled" : "") +
@@ -1388,9 +1470,7 @@
     updateExistingNotice();
   }
   function updateExistingNotice() {
-    const uses = state.draftUses.filter((u) => u.factory_id);
-    const fids = [...new Set(uses.map((u) => u.factory_id))];
-    const found = fids.length === 1 && state.documents.find((d) => d.factory_id === fids[0] && norm(d.material_name) === norm($("materialName").value));
+    const found = findCanonicalDocument($("materialName").value);
     $("existingDocumentNotice").classList.toggle("hidden", !found);
     if (!found) $("updateExistingInfo").checked = false;
     return found || null;
@@ -1635,10 +1715,12 @@
       file = state.files[0] || null,
       components = state.draftComponents
         .filter((c) => c.name || c.content || c.cas)
-        .map(({ name, content, cas }) => ({
+        .map(({ name, content, cas, legal_status, legal_basis }) => ({
           name: name.trim(),
           content: content.trim(),
           cas: cas.trim(),
+          legal_status: legal_status || "",
+          legal_basis: (legal_basis || "").trim(),
         })),
       regulations = draftRegulations();
     if (
@@ -1654,7 +1736,7 @@
     }
     if (note && !state.notesSupported) {
       toast(
-        "비고 저장 설정이 필요합니다. VER11 데이터베이스 업데이트를 먼저 실행해 주세요.",
+        "비고 저장 설정이 필요합니다. VER12 데이터베이스 업데이트를 먼저 실행해 주세요.",
       );
       return;
     }
@@ -1667,20 +1749,12 @@
         regulations.dangerous.length)
     ) {
       toast(
-        "VER11 데이터베이스 설정 후 성분·규제정보를 저장할 수 있습니다.",
+        "VER12 데이터베이스 설정 후 성분·규제정보를 저장할 수 있습니다.",
       );
       return;
     }
-    const factoryIds = [...new Set(uses.map((u) => u.factory_id))];
-    if (factoryIds.length !== 1) {
-      toast("1공장과 2공장은 한 번에 같이 등록할 수 없습니다.");
-      return;
-    }
-    const factoryId = factoryIds[0];
-    let doc = state.documents.find(
-      (x) =>
-        x.factory_id === factoryId && norm(x.material_name) === norm(material),
-    );
+    const factoryId = uses[0].factory_id;
+    let doc = findCanonicalDocument(material);
     const existedBeforeSave = Boolean(doc);
     const updateExisting = !doc || $("updateExistingInfo").checked;
     const saveFile = updateExisting ? file : null;
@@ -1728,7 +1802,7 @@
       if (!doc) {
         const fileName = saveFile ? saveFile.name : "__NO_PDF__" + id,
           path = saveFile
-            ? "factory-" + factoryId + "/" + id + "/" + storageSafeName(saveFile.name)
+            ? "shared/" + id + "/" + storageSafeName(saveFile.name)
             : "unattached/" + id;
         if (saveFile) await storagePut(path, saveFile);
         let rows;
@@ -1756,7 +1830,7 @@
           });
         if (saveFile) {
           const path =
-            "factory-" + factoryId + "/" + doc.id + "/" + storageSafeName(saveFile.name);
+            "shared/" + doc.id + "/" + storageSafeName(saveFile.name);
           await storagePut(path, saveFile);
           await api("/rest/v1/documents?id=eq." + encodeURIComponent(doc.id), {
             method: "PATCH",
@@ -1833,7 +1907,7 @@
         return (
           '<div class="usage-row">' +
           useSelect(
-            [f].filter(Boolean),
+            state.factories,
             u.factory_id,
             "공장",
             "factory_id",
@@ -1865,7 +1939,7 @@
   function renderEditComponentRows() {
     if (!state.editComponents.length) state.editComponents = [emptyComponent()];
     $("editComponentList").innerHTML = state.editComponents.map((c) =>
-      '<div class="component-row"><input data-edit-component="'+esc(c.id)+'" data-component-field="name" value="'+esc(c.name)+'" placeholder="화학물질명"><input data-edit-component="'+esc(c.id)+'" data-component-field="content" value="'+esc(c.content)+'" placeholder="함량(%)"><input data-edit-component="'+esc(c.id)+'" data-component-field="cas" value="'+esc(c.cas)+'" placeholder="CAS No."><button type="button" class="usage-remove" data-edit-remove-component="'+esc(c.id)+'" '+(state.editComponents.length===1?'disabled':'')+'>×</button></div>'
+      '<div class="component-row"><input data-edit-component="'+esc(c.id)+'" data-component-field="name" value="'+esc(c.name)+'" placeholder="화학물질명"><input data-edit-component="'+esc(c.id)+'" data-component-field="content" value="'+esc(c.content)+'" placeholder="함량(%)"><input data-edit-component="'+esc(c.id)+'" data-component-field="cas" value="'+esc(c.cas)+'" placeholder="CAS No."><select data-edit-component="'+esc(c.id)+'" data-component-field="legal_status"><option value=""'+(!c.legal_status?' selected':'')+'>자동판정</option><option value="applicable"'+(c.legal_status==='applicable'?' selected':'')+'>해당</option><option value="not-applicable"'+(c.legal_status==='not-applicable'?' selected':'')+'>비해당</option><option value="review"'+(c.legal_status==='review'?' selected':'')+'>확인 필요</option></select><input data-edit-component="'+esc(c.id)+'" data-component-field="legal_basis" value="'+esc(c.legal_basis||'')+'" placeholder="성분별 판정근거"><button type="button" class="usage-remove" data-edit-remove-component="'+esc(c.id)+'" '+(state.editComponents.length===1?'disabled':'')+'>×</button></div>'
     ).join("");
   }
   function setChecked(name, values) {
@@ -1878,7 +1952,7 @@
     state.editDocumentId = id;
     state.editUses = d.locations.map((l) => ({
       id: uid("edituse"),
-      factory_id: d.factory_id,
+      factory_id: l.factory_id,
       department_id: l.department_id,
       equipment_id: l.equipment_id,
       process_id: l.process_id,
@@ -1886,7 +1960,7 @@
     $("editMaterialName").value = d.material_name;
     $("editMaterialNote").value = d.notes || "";
     const meta = metadataFor(d), r = meta.regulations || {};
-    state.editComponents = (meta.components || []).map((c) => ({id:uid("editcomponent"),name:c.name||"",content:c.content||"",cas:c.cas||""}));
+    state.editComponents = (meta.components || []).map((c) => ({id:uid("editcomponent"),name:c.name||"",content:c.content||"",cas:c.cas||"",legal_status:c.legal_status||"",legal_basis:c.legal_basis||""}));
     renderEditComponentRows();
     setChecked("editRegChemical", r.chemical);
     setChecked("editRegOsh", r.osh);
@@ -1907,7 +1981,7 @@
       name = $("editMaterialName").value.trim(),
       note = $("editMaterialNote").value.trim(),
       file = $("editPdfInput").files?.[0],
-      components = state.editComponents.filter((c)=>c.name||c.content||c.cas).map(({name,content,cas})=>({name:name.trim(),content:content.trim(),cas:cas.trim()})),
+      components = state.editComponents.filter((c)=>c.name||c.content||c.cas).map(({name,content,cas,legal_status,legal_basis})=>({name:name.trim(),content:content.trim(),cas:cas.trim(),legal_status:legal_status||"",legal_basis:(legal_basis||"").trim()})),
       regulations = {
         chemical:selectedValues("editRegChemical"), osh:selectedValues("editRegOsh"),
         dangerous:$("editRegDangerous").checked ? [$("editDangerousClass").value.trim(),$("editDesignatedQuantity").value.trim()].filter(Boolean) : [],
@@ -1918,7 +1992,7 @@
     if (!d || !name) return;
     if (note && !state.notesSupported) {
       toast(
-        "비고 저장 설정이 필요합니다. VER11 데이터베이스 업데이트를 먼저 실행해 주세요.",
+        "비고 저장 설정이 필요합니다. VER12 데이터베이스 업데이트를 먼저 실행해 주세요.",
       );
       return;
     }
@@ -1953,7 +2027,7 @@
         if (file.size > 50 * 1024 * 1024) { toast("PDF는 50MB 이하만 등록할 수 있습니다."); return; }
         const old = hasPdf(d) ? d.storage_path : "",
           path =
-            "factory-" + d.factory_id + "/" + d.id + "/" + storageSafeName(file.name);
+            "shared/" + d.id + "/" + storageSafeName(file.name);
         await storagePut(path, file);
         patch = {
           ...patch,
@@ -1975,7 +2049,7 @@
         if (linkedEquipmentIds.has(l.equipment_id)) continue;
         await api("/rest/v1/document_locations", {
           method: "POST",
-          body: JSON.stringify([{document_id:d.id,factory_id:d.factory_id,department_id:l.department_id,equipment_id:l.equipment_id,process_id:l.process_id}]),
+          body: JSON.stringify([{document_id:d.id,factory_id:l.factory_id,department_id:l.department_id,equipment_id:l.equipment_id,process_id:l.process_id}]),
         });
         linkedEquipmentIds.add(l.equipment_id);
       }
@@ -1990,6 +2064,21 @@
     toast(
       file ? "사용물질과 PDF를 수정했습니다." : "사용물질 정보를 수정했습니다.",
     );
+    if (state.reviewQueue.length) {
+      if (pendingRegulationDocuments().some((x) => x.id === d.id)) {
+        toast("성분별 판정과 규제확인 체크를 완료해야 다음 항목으로 이동합니다.");
+        setTimeout(() => openEditDocument(d.id), 120);
+        return;
+      }
+      const remaining = state.reviewQueue.slice(state.reviewIndex + 1).find((id) => pendingRegulationDocuments().some((d) => d.id === id));
+      if (remaining) {
+        state.reviewIndex = state.reviewQueue.indexOf(remaining);
+        setTimeout(() => openEditDocument(remaining), 120);
+      } else {
+        state.reviewQueue = [];
+        toast("확인 필요 항목 검토를 완료했습니다.");
+      }
+    }
   }
 
   async function resolveDocBlob(doc) {
@@ -2113,7 +2202,7 @@
     }
     downloadBlob(
       await zip.generateAsync({ type: "blob" }),
-      "FCT_MSDS_전체PDF_VER11_rev.1.zip",
+      "FCT_MSDS_전체PDF_VER12_rev.1.zip",
     );
   }
 
@@ -2436,6 +2525,8 @@
           "화학물질명",
           "함량",
           "CAS No.",
+          "성분판정",
+          "성분판정근거",
           "유해화학물질",
           "산안법",
           "위험물",
@@ -2462,7 +2553,8 @@
                     ? m.components
                     : [{ name: "", content: "", cas: "" }],
                   r = m.regulations || {};
-                comps.forEach((c) =>
+                comps.forEach((c) => {
+                  const assessment = componentAssessment(doc, c);
                   rows.push([
                     fa.name,
                     d.name,
@@ -2472,6 +2564,8 @@
                     c.name || "",
                     c.content || "",
                     c.cas || "",
+                    c.legal_status === "applicable" ? "해당" : c.legal_status === "not-applicable" ? "비해당" : c.legal_status === "review" ? "확인 필요" : "자동",
+                    c.legal_basis || assessment.basis || "",
                     (r.chemical || []).join(", "),
                     (r.osh || []).join(", "),
                     (r.dangerous || []).join(", "),
@@ -2481,8 +2575,8 @@
                     (r.missing_fields || []).join(", "),
                     doc.notes || "",
                     shownFileName(doc),
-                  ]),
-                );
+                  ]);
+                });
               });
             else
               rows.push([
@@ -2503,13 +2597,15 @@
                 "",
                 "",
                 "",
+                "",
+                "",
               ]);
           }),
         ),
       );
     downloadBlob(
       await workbookBlob(rows),
-      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER11_rev.1.xlsx",
+      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER12_rev.1.xlsx",
     );
   }
   function parseCsv(text) {
@@ -2727,6 +2823,8 @@
         component: at("화학물질명"),
         content: at("함량"),
         cas: at("CAS No."),
+        legalStatus: at("성분판정"),
+        legalBasis: at("성분판정근거"),
         chemical: at("유해화학물질"),
         osh: at("산안법"),
         dangerous: at("위험물"),
@@ -2754,6 +2852,8 @@
         component: c.component >= 0 ? String(r[c.component] || "").trim() : "",
         content: c.content >= 0 ? String(r[c.content] || "").trim() : "",
         cas: c.cas >= 0 ? String(r[c.cas] || "").trim() : "",
+        legalStatus: c.legalStatus >= 0 ? String(r[c.legalStatus] || "").trim() : "",
+        legalBasis: c.legalBasis >= 0 ? String(r[c.legalBasis] || "").trim() : "",
         chemical: c.chemical >= 0 ? String(r[c.chemical] || "").split(/[,;\n]/).map(x=>x.trim()).filter(Boolean) : [],
         osh: c.osh >= 0 ? String(r[c.osh] || "").split(/[,;\n]/).map(x=>x.trim()).filter(Boolean) : [],
         dangerous: c.dangerous >= 0 ? String(r[c.dangerous] || "").split(/[,;\n]/).map(x=>x.trim()).filter(Boolean) : [],
@@ -2790,7 +2890,7 @@
     valid
       .filter((x) => x.material)
       .forEach((x) => {
-        const key = [norm(x.factory), norm(x.material)].join("|");
+        const key = norm(x.material);
         if (!groups.has(key))
           groups.set(key, {
             factory: x.factory,
@@ -2807,7 +2907,7 @@
         if (x.pdf) g.pdf = x.pdf;
         if (x.component || x.content || x.cas) {
           const ck = [norm(x.component),norm(x.content),norm(x.cas)].join("|");
-          if (!g.components.some((c)=>[norm(c.name),norm(c.content),norm(c.cas)].join("|")===ck)) g.components.push({name:x.component,content:x.content,cas:x.cas});
+          if (!g.components.some((c)=>[norm(c.name),norm(c.content),norm(c.cas)].join("|")===ck)) g.components.push({name:x.component,content:x.content,cas:x.cas,legal_status:/^해당$/.test(x.legalStatus)?"applicable":/^비해당$/.test(x.legalStatus)?"not-applicable":/^확인/.test(x.legalStatus)?"review":"",legal_basis:x.legalBasis||""});
         }
         for (const k of ["chemical","osh","dangerous"]) g.regulations[k] = [...new Set([...g.regulations[k],...x[k]])];
         if (x.basis) g.regulations.basis = x.basis;
@@ -2883,7 +2983,7 @@
     if (new Set(selectedNames).size !== selectedNames.length) { alert("같은 이름의 PDF가 여러 개 선택되었습니다. 중복 파일을 제외해 주세요."); return; }
     if (!state.notesSupported && plan.rows.some((x) => x.note)) {
       alert(
-        "비고 저장 설정이 필요합니다. VER11 데이터베이스 업데이트를 먼저 실행해 주세요.",
+        "비고 저장 설정이 필요합니다. VER12 데이터베이스 업데이트를 먼저 실행해 주세요.",
       );
       return;
     }
@@ -2898,11 +2998,7 @@
     for (const group of plan.groups) {
       const uses = group.rows.map((r) => pathMap.get(r.row)),
         fid = uses[0].factory_id;
-      let doc = state.documents.find(
-        (x) =>
-          x.factory_id === fid &&
-          norm(x.material_name) === norm(group.material),
-      );
+      let doc = findCanonicalDocument(group.material);
       const source = group.pdf
         ? state.documents.find(
             (x) => hasPdf(x) && norm(x.file_name) === norm(group.pdf),
@@ -2956,7 +3052,7 @@
         if (!doc) {
           const fileName = blob ? group.pdf : "__NO_PDF__" + id,
             path = blob
-              ? "factory-" + fid + "/" + id + "/" + storageSafeName(group.pdf)
+              ? "shared/" + id + "/" + storageSafeName(group.pdf)
               : "unattached/" + id;
           if (blob) await storagePut(path, blob);
           const rows = await api("/rest/v1/documents", {
@@ -2997,7 +3093,7 @@
             (!hasPdf(doc) || norm(doc.file_name) !== norm(group.pdf))
           ) {
             const path =
-              "factory-" + fid + "/" + doc.id + "/" + storageSafeName(group.pdf);
+              "shared/" + doc.id + "/" + storageSafeName(group.pdf);
             await storagePut(path, blob);
             await api(
               "/rest/v1/documents?id=eq." + encodeURIComponent(doc.id),
@@ -3155,6 +3251,11 @@
     }
   });
   document.addEventListener("click", async (e) => {
+    const review = e.target.closest("[data-review-doc]");
+    if (review) {
+      startRegulationReview(review.dataset.reviewDoc);
+      return;
+    }
     const reg = e.target.closest("[data-reg-key]");
     if (reg) {
       state.regPath.push(reg.dataset.regKey);
@@ -3195,7 +3296,7 @@
     }
     const crumb = e.target.closest("[data-browse-crumb]");
     if (crumb) {
-      if (crumb.dataset.browseCrumb === "root") resetBrowse(false);
+      if (crumb.dataset.browseCrumb === "root") resetBrowse(true);
       else selectBrowse(crumb.dataset.browseCrumb, crumb.dataset.browseId);
       return;
     }
@@ -3334,6 +3435,11 @@
     if (!s) return;
     const u = state.editUses.find((x) => x.id === s.dataset.editUse);
     u[s.dataset.field] = s.value;
+    if (s.dataset.field === "factory_id") {
+      u.department_id = "";
+      u.equipment_id = "";
+      u.process_id = "";
+    }
     if (s.dataset.field === "department_id") {
       u.equipment_id = "";
       u.process_id = "";
@@ -3358,7 +3464,7 @@
     if (base) {
       state.editUses.push({
         id: uid("edituse"),
-        factory_id: d.factory_id,
+        factory_id: base.factory_id,
         department_id: base.department_id,
         equipment_id: base.equipment_id,
         process_id: base.process_id,
@@ -3383,6 +3489,14 @@
   $("regBackBtn").addEventListener("click", () => {
     state.regPath.pop();
     renderRegulatoryDashboard();
+  });
+  $("regSearchInput").addEventListener("input", renderIngredientDashboard);
+  $("regStatusFilter").addEventListener("change", renderIngredientDashboard);
+  $("startRegReviewBtn").addEventListener("click", () => startRegulationReview());
+  $("dashboardReviewAlert").addEventListener("click", () => {
+    switchView("regulations");
+    $("regStatusFilter").value = "review";
+    renderIngredientDashboard();
   });
   $("pdfInput").addEventListener("change", (e) => addFiles(e.target.files));
   $("analyzePdfBtn").addEventListener("click", analyzeSelectedPdf);
