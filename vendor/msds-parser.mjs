@@ -8,6 +8,67 @@ const SECTION3_RE = /^\s*(?:section\s*)?[3３]\s*(?:[.．)–—-]|\s)\s*(?:구�
 const SECTION4_RE = /^\s*(?:section\s*)?[4４]\s*(?:[.．)–—-]|\s)\s*(?:응급|first\s*aid)/i;
 const FOOTNOTE_RE = /^(?:※|\*|주\s*[:：]|참고\s*[:：]|note\s*[:：])/i;
 const AMOUNT_RE = /^(?:(?:[<>≤≥]=?|약)\s*)?(?:\d+(?:\.\d+)?(?:\s*(?:[-~–—]|내지|to)\s*(?:[<>≤≥]=?\s*)?\d+(?:\.\d+)?)?|trace|잔량|balance|영업비밀|기밀)(?:\s*(?:%|wt\.?\s*%))?$/i;
+const CANONICAL_NAMES_BY_CAS = {
+  "1344-28-1": "산화알루미늄 (Aluminum oxide)",
+  "7429-90-5": "알루미늄 (Aluminum)",
+  "162627-22-7": "인산 폴리에스터 (Phosphoric acid polyester)",
+  "7664-38-2": "인산 (Phosphoric acid)",
+  "7758-99-8": "황산구리(II) 오수화물",
+  "84-74-2": "디부틸 프탈레이트",
+  "67-68-5": "디메틸 설폭사이드",
+  "7732-18-5": "물 (Water)",
+  "7803-57-8": "히드라진 수화물",
+  "75-59-2": "수산화 테트라메틸암모늄",
+  "64-17-5": "에탄올 (Ethanol)",
+  "7705-08-0": "염화철(III) (Iron(III) chloride)",
+  "108-88-3": "톨루엔 (Toluene)",
+  "107-41-5": "2-메틸-2,4-펜탄디올 (Hexylene glycol)",
+  "64742-47-8": "수소처리 경질 석유 증류물",
+  "27360-07-2": "비닐 부티랄 중합체",
+  "94-28-0": "2-에틸헥산산 에스터계 성분",
+  "1333-74-0": "수소 (Hydrogen)",
+  "7664-93-9": "황산 (Sulfuric acid)",
+  "7647-01-0": "염화수소 (Hydrogen chloride)",
+  "872-50-4": "N-메틸-2-피롤리돈",
+  "109-17-1": "3,6,9-Trioxaundecamethylene dimethacrylate",
+  "65894-76-0": "O-(Ethoxycarbonyl)-N-(1-methyl-2-oxo-2-phenylethylidene)hydroxylamine",
+  "23779-32-0": "[3-(Triethoxysilyl)propyl]urea",
+  "868-77-9": "2-하이드록시에틸 메타크릴레이트",
+  "53185-52-7": "3-Methoxy-N,N-dimethylpropanamide",
+  "51728-26-8": "Poly(oxy-1,2-ethanediyl) acrylate ether",
+  "7664-39-3": "불화수소 (Hydrogen fluoride)",
+  "999-97-3": "헥사메틸디실라잔 (HMDS)",
+  "67-63-0": "이소프로필 알코올 (IPA)",
+  "13967-50-5": "금 시안화칼륨 (Gold potassium cyanide)",
+  "1309-48-4": "산화마그네슘",
+  "7439-98-7": "몰리브덴 (Molybdenum)",
+  "9004-57-3": "에틸셀룰로오스",
+  "124-17-4": "부틸 카비톨 아세테이트",
+  "8000-41-7": "테르피네올",
+  "1302-93-8": "규산알루미늄",
+  "1313-59-3": "산화나트륨",
+  "1309-37-1": "산화철(III)",
+  "7727-37-9": "질소 (Nitrogen)",
+  "13462-88-9": "브로민화 니켈",
+  "124594-15-6": "설파민산니켈 사수화물",
+  "112-34-5": "부틸 카비톨",
+  "63148-65-2": "폴리비닐 부티랄 (PVB)",
+  "107-98-2": "프로필렌글리콜 메틸에테르",
+  "67-64-1": "아세톤 (Acetone)",
+  "67-56-1": "메탄올 (Methanol)",
+  "14808-60-7": "결정질 실리카 (Quartz)",
+  "1314-36-9": "산화이트륨",
+  "1308-38-9": "산화크롬(III)",
+  "848301-69-9": "C18-50 중질 석유 증류물",
+  "90-30-2": "N-페닐-1-나프틸아민",
+  "3115-49-9": "(4-노닐페녹시)아세트산",
+  "13463-67-7": "이산화티타늄",
+  "102-71-6": "트리에탄올아민",
+  "10043-35-3": "붕산 (Boric acid)",
+  "57675-44-2": "트라이메틸올프로판 트리올레에이트",
+  "2634-33-5": "1,2-벤즈아이소티아졸-3(2H)-온 (BIT)",
+  "78-93-3": "부탄온 (MEK)",
+};
 
 function clean(value) {
   return String(value || "")
@@ -173,6 +234,16 @@ function joinColumnItems(items) {
 
 function normalizeAmount(value) {
   return clean(value).replace(/\s*(?:wt\.?\s*)?%$/i, "%").replace(/\s/g, "");
+}
+
+function cleanComponentName(value, cas) {
+  if (CANONICAL_NAMES_BY_CAS[cas]) return CANONICAL_NAMES_BY_CAS[cas];
+  const name = clean(value)
+    .replace(/\s+CAS\s*번호란이\s*빈\s*칸인\s*화학물질입니다\.?$/i, "")
+    .replace(/^\d+\)\s*/, "")
+    .trim();
+  if (/물질안전보건자료|제품\s*사양|MSDS\s*번호|문서\s*번호|페이지\s*Page|에\s*따르면/i.test(name)) return "";
+  return name;
 }
 
 export function rowsFromPositionedTable(page, layout) {
@@ -352,14 +423,16 @@ export function findComponents(data) {
   const unique = [];
   [...rows, ...fallback].forEach((row) => {
     const normalized = {
-      name: clean(row.name)
+      name: cleanComponentName(clean(row.name)
         .replace(/^(?:화학\s*물질명|물질명|성분명)\s*[:：]?\s*/i, "")
-        .trim(),
+        .trim(), clean(row.cas)),
       content: clean(row.content),
       cas: clean(row.cas),
     };
     if (/^(?:CAS\s*(?:번호|No\.?)?|함유량|함량|농도)\s*[:：]?$/i.test(normalized.name))
       normalized.name = "";
+    const amountNumbers = [...normalized.content.matchAll(/\d+(?:\.\d+)?/g)].map((match) => Number(match[0]));
+    if (amountNumbers.some((number) => number > 100)) normalized.content = "";
     const singleAmount = normalized.content.replace(/[%<>=≤≥\s]/g, "");
     const isRange = /[-~–—]|\bto\b/i.test(normalized.content);
     if (
@@ -386,6 +459,62 @@ export function findComponents(data) {
   return unique.slice(0, 40);
 }
 
+function findSection15Text(data) {
+  const lines = data.pages.flatMap((page) => page.lines.map((line) => line.text));
+  const start = lines.findIndex((line) => /^(?:section\s*)?15\s*(?:[.．–—-]|\s)\s*(?:법적|regulatory)/i.test(clean(line)));
+  if (start < 0) return "";
+  const body = lines.slice(start + 1);
+  const end = body.findIndex((line) => /^(?:section\s*)?16\s*(?:[.．–—-]|\s)/i.test(clean(line)));
+  return (end < 0 ? body.slice(0, 180) : body.slice(0, end)).map(clean).filter(Boolean).join("\n");
+}
+
+function positiveLegalItem(section, patterns) {
+  const lines = section.split("\n");
+  for (let index = 0; index < lines.length; index++) {
+    if (!patterns.some((pattern) => pattern.test(lines[index]))) continue;
+    const sample = lines.slice(index, index + 4).join(" ");
+    if (/(?:해당\s*없음|해당되지\s*않음|규제\s*되지\s*않음|비해당)/.test(sample) && !/해당\s*됨/.test(sample)) continue;
+    if (/해당\s*됨|\b\d{2,7}-\d{2}-\d\b|기준치\s*\(%\)|측정주기|진단주기/.test(sample)) return true;
+    const current = clean(lines[index]);
+    const next = clean(lines[index + 1]);
+    if (!/[:：]\s*$/.test(current) && (!next || /대상|관리물질|유해물질|법에\s*의한\s*규제/.test(next))) return true;
+  }
+  return false;
+}
+
+export function findRegulations(data) {
+  const section = findSection15Text(data);
+  if (!section) return { chemical: [], osh: [], dangerous: [] };
+  const chemical = [], osh = [];
+  const definitions = [
+    ["인체급성유해성물질", [/인체\s*급성\s*유해성물질/], chemical],
+    ["인체만성유해성물질", [/인체\s*만성\s*유해성물질/], chemical],
+    ["생태유해성물질", [/생태\s*유해성물질/], chemical],
+    ["사고대비물질", [/사고\s*대비물질/], chemical],
+    ["관리대상 유해물질", [/관리대상\s*유해(?:화학)?물질/], osh],
+    ["특별관리물질", [/특별관리(?:대상)?물질/], osh],
+    ["작업환경측정 대상", [/작업환경\s*측정(?:대상)?(?:물질|\s*유해인자)?/], osh],
+    ["특수건강진단 대상", [/특수건강(?:검진|진단)(?:대상)?(?:물질|\s*유해인자)?/], osh],
+  ];
+  definitions.forEach(([label, patterns, bucket]) => {
+    if (positiveLegalItem(section, patterns)) bucket.push(label);
+  });
+
+  let dangerous = [];
+  const dangerStart = section.search(/위험물\s*안전관리법|위험물안전관리법/);
+  if (dangerStart >= 0) {
+    const tail = section.slice(dangerStart);
+    const end = tail.slice(1).search(/폐기물관리법/);
+    const dangerSection = end >= 0 ? tail.slice(0, end + 1) : tail.slice(0, 1200);
+    const productNegative = /제품\s*[:：]?[^\n]*(?:해당되지\s*않음|규제되지\s*않음)|위험물에\s*해당되지\s*않음|위험물안전관리법[^\n]*(?:해당\s*없음|규제\s*되지\s*않음)/.test(dangerSection);
+    if (!productNegative) {
+      const classLine = dangerSection.split("\n").map(clean).find((line) => /제\s*[1-6]\s*류/.test(line));
+      if (classLine) dangerous = [classLine.replace(/^[-·•\s]+/, "").slice(0, 120)];
+    }
+  }
+  return { chemical: [...new Set(chemical)], osh: [...new Set(osh)], dangerous };
+}
+
 export function parseMsds(data) {
   const components = findComponents(data);
   const noListedComponents = /유해한\s*성분\s*없음|분류기준에\s*해당하는\s*화학물질을\s*포함하지\s*않음/i.test(data.text);
@@ -401,6 +530,7 @@ export function parseMsds(data) {
   return {
     productName: findProductName(data) || (components.length === 1 ? components[0].name : ""),
     components,
+    regulations: findRegulations(data),
     noListedComponents,
     reviewRequired,
   };
