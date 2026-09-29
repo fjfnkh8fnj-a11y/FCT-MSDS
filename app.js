@@ -1066,8 +1066,9 @@
     if (status) rows = rows.filter((r) => r.status === status);
     if (level) rows = rows.filter((r) => r.assessments.some((a) => (a.decisions || []).some((d) => d.status === "applicable" && d.group === level && (!detail || d.label.includes(detail) || detail.includes(d.label)))));
     const statusLabel = { applicable: "해당", "not-applicable": "비해당", review: "원문 판독 필요", unmatched: "기준 DB 보완 중" };
+    const pendingIds = new Set(pendingRegulationDocuments().map(d => d.id));
     target.innerHTML = rows.length ? '<div class="ingredient-head"><b>성분별 규제현황</b><span>'+rows.length+'개 성분</span></div><div class="ingredient-list">' + rows.map((r) => {
-      const docs = [...r.products.values()], firstReview = docs.find((d) => pendingRegulationDocuments().some((x) => x.id === d.id));
+      const docs = [...r.products.values()], firstReview = docs.find((d) => pendingIds.has(d.id));
       return '<article class="ingredient-row"><div class="ingredient-main"><b>'+esc(r.name)+'</b><span>CAS No. '+esc(r.cas)+' · 함량 '+esc([...r.contents].join(", "))+'</span></div><span class="decision '+r.status+'">'+statusLabel[r.status]+'</span><div class="ingredient-products"><b>'+docs.length+'개 제품</b><span>'+docs.map((d)=>esc(d.material_name)).join(", ")+'</span><small>사용처 '+r.locations.size+'곳</small></div><div class="ingredient-basis">'+esc(r.assessments.map((a)=>a.basis).filter(Boolean)[0] || "판정 근거 확인 필요")+'</div>'+(state.admin && firstReview?'<button class="btn btn-blue btn-small" data-review-doc="'+esc(firstReview.id)+'">확인·수정</button>':'')+'</article>';
     }).join("") + '</div>' : '<div class="reg-empty">조건에 맞는 성분이 없습니다.</div>';
   }
@@ -1801,8 +1802,8 @@
       error.code = "SECURED_PDF";
       throw error;
     }
-    const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.4");
-    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.4");
+    const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.5");
+    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.5");
     pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
     let pdf;
     try {
@@ -2477,7 +2478,7 @@
       if (!response.ok) throw new Error("PDF 파일을 불러오지 못했습니다.");
       const bytes = new Uint8Array(await response.arrayBuffer());
       if (run !== pdfRenderRun) return;
-      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.4");
+      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.5");
       pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
       activePdfTask = pdfjs.getDocument({ data: bytes });
       const pdf = await activePdfTask.promise;
@@ -2628,7 +2629,7 @@
     }
     downloadBlob(
       await zip.generateAsync({ type: "blob" }),
-      "FCT_MSDS_전체PDF_VER13_rev.4.zip",
+      "FCT_MSDS_전체PDF_VER13_rev.5.zip",
     );
   }
 
@@ -3031,7 +3032,7 @@
       );
     downloadBlob(
       await workbookBlob(rows),
-      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER13_rev.4.xlsx",
+      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER13_rev.5.xlsx",
     );
   }
   function parseCsv(text) {
@@ -4005,7 +4006,7 @@
   $("homeLogo").addEventListener("click", goHome);
   async function init() {
     try {
-      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.4');
+      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.5');
       refreshLegalRules();
     } catch (error) { console.error('법적기준 모듈 로드 실패', error); }
     state.draftUses = [emptyUse()];

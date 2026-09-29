@@ -57,6 +57,8 @@ export function compare(range, threshold) {
   return 'review';
 }
 export function activeRules(rules, on = todayKorea()) {
+  const cached = activeRuleCache.get(rules);
+  if (cached?.on === on) return cached.rows;
   const byKey = new Map();
   for (const r of rules) {
     if (!r.effective_date || r.effective_date > on || r.superseded_at && r.superseded_at <= on) continue;
@@ -64,13 +66,28 @@ export function activeRules(rules, on = todayKorea()) {
     const previous = byKey.get(key);
     if (!previous || previous.effective_date <= r.effective_date) byKey.set(key,r);
   }
-  return [...byKey.values()];
+  const rows = [...byKey.values()];
+  activeRuleCache.set(rules, {on, rows});
+  return rows;
+}
+const activeRuleCache = new WeakMap();
+const indexedRuleCache = new WeakMap();
+function rulesByCas(rules, on) {
+  const cached = indexedRuleCache.get(rules);
+  if (cached?.on === on) return cached.index;
+  const index = new Map();
+  for (const row of activeRules(rules, on)) {
+    if (!index.has(row.cas)) index.set(row.cas, []);
+    index.get(row.cas).push(row);
+  }
+  indexedRuleCache.set(rules, {on, index});
+  return index;
 }
 export function assess(components, rules, { on = todayKorea(), physicalState = '', ph = null } = {}) {
-  const current = activeRules(rules, on), decisions = [];
+  const index = rulesByCas(rules, on), decisions = [];
   for (const component of components || []) {
     const cas = String(component.cas || '').trim(), range = contentRange(component.content);
-    for (const criterion of current.filter(r => r.cas === cas)) {
+    for (const criterion of index.get(cas) || []) {
       let status = compare(range, Number(criterion.threshold));
       if (criterion.detail?.includes('pH 2.0') && status === 'applicable' && !(ph !== null && Number(ph) <= 2)) status = 'review';
       decisions.push({ ...criterion, status, content: component.content || '', component_name: component.name || '' });
