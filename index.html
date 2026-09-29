@@ -17,7 +17,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%230c1935'/%3E%3Cpath d='M12 12h40v10H23v8h24v10H23v12H12z' fill='%23ffb300'/%3E%3C/svg%3E"
     />
-    <link rel="stylesheet" href="./styles.css?v=VER12_rev.3" />
+    <link rel="stylesheet" href="./styles.css?v=VER13_rev.3" />
   </head>
   <body>
     <header class="topbar">
@@ -32,7 +32,7 @@
       <div class="brand-copy">
         <h1>
           MSDS 안전관리
-          <span class="version admin-only hidden">VER12_rev.3 · 수정일 2026-09-28</span>
+          <span class="version admin-only hidden">VER13_rev.3 · 수정일 2026-09-29</span>
         </h1>
       </div>
       <div class="top-actions">
@@ -66,6 +66,7 @@
           <button type="button" data-view="help"><span>?</span>사용방법</button>
           <div class="admin-nav hidden" id="adminNav">
             <p class="side-label sub-label">관리자</p>
+            <button type="button" data-view="legal-criteria"><span>§</span>법적기준 관리</button>
             <button type="button" data-view="upload">
               <span>＋</span>사용물질 등록
             </button>
@@ -193,6 +194,24 @@
           </section>
         </section>
 
+        <section class="view" id="view-legal-criteria">
+          <div class="page-head"><div><h2>법적기준 관리</h2><p>법령 원본과 시행일을 보존하고 현재 시행 기준으로 제품을 다시 판정합니다.</p></div></div>
+          <div class="card-box legal-manager">
+            <h3>법령·고시 PDF 등록</h3>
+            <label class="field">법령 원문 PDF <input id="legalPdfInput" type="file" accept=".pdf,application/pdf"></label>
+            <div class="legal-fields">
+              <label class="field">법령명 <input id="legalSourceName" placeholder="원문에서 자동 추출"></label>
+              <label class="field">고시번호 <input id="legalNoticeNumber" placeholder="원문에서 자동 추출"></label>
+              <label class="field">시행일 <input id="legalEffectiveDate" type="date"></label>
+            </div>
+            <div class="row-actions"><button class="btn btn-blue" type="button" id="legalAnalyzeBtn">원문 분석</button><button class="btn btn-dark" type="button" id="legalSaveBtn" disabled>판독된 기준 등록</button></div>
+            <p class="sub">CAS·함량·적용조건이 명확하게 연결되는 행만 자동 판정에 사용합니다. 시행 전 법령은 보관하고 시행일부터 적용합니다.</p>
+            <div class="legal-analysis" id="legalAnalysis"></div>
+          </div>
+          <div class="card-box"><h3>기준 원본 및 적용이력</h3><div id="legalSourceList"></div></div>
+          <div class="card-box"><h3>FCT 제품 판정 변경</h3><div id="legalProductChanges"></div></div>
+        </section>
+
         <section class="view" id="view-upload">
           <div class="page-head">
             <div>
@@ -256,8 +275,9 @@
                 </button>
               </div>
               <div class="component-list" id="componentList"></div>
-              <h3>5. 법적 규제정보</h3>
-              <div class="reg-input-grid">
+              <h3>5. 법적 규제정보 자동판정</h3>
+              <p>성분명·CAS No.·함량과 현재 시행 기준으로 판정합니다. 원문에서 읽히지 않은 값만 입력하세요.</p>
+              <div class="reg-input-grid manual-legal-controls">
                 <fieldset>
                   <legend>화학물질관리법</legend>
                   <label
@@ -336,7 +356,7 @@
                   />
                 </fieldset>
               </div>
-              <div class="field">
+              <div class="field manual-legal-controls">
                 <label for="regBasis">판정 기준·근거</label
                 ><textarea
                   id="regBasis"
@@ -344,7 +364,7 @@
                   placeholder="함량기준, 적용조건 등을 입력하세요."
                 ></textarea>
               </div>
-              <label class="confirm-check"><input type="checkbox" id="regConfirmed" /> MSDS 원문과 기준을 확인한 규제정보입니다.</label>
+              <label class="confirm-check"><input type="checkbox" id="regConfirmed" disabled /> 법적 판정은 현재 시행 기준으로 자동 처리됩니다.</label>
               <h3>6. 비고</h3>
               <div class="field">
                 <label for="materialNote">비고</label
@@ -407,7 +427,7 @@
                 </li>
                 <li>엑셀 관리에서 전체 자료를 내려받거나 일괄 등록합니다.</li>
               </ol>
-              <p class="version-note">프로그램 버전 VER12_rev.3 · 수정일 2026-09-28</p>
+              <p class="version-note">프로그램 버전 VER13_rev.3 · 수정일 2026-09-29</p>
             </article>
           </div>
         </section>
@@ -626,8 +646,9 @@
             <button class="btn btn-blue btn-small" id="editAddComponentBtn" type="button">＋ 성분 추가</button>
           </div>
           <div class="component-list" id="editComponentList"></div>
-          <h3>법적 규제정보</h3>
-          <div class="reg-input-grid">
+          <h3>법적 규제정보 자동판정</h3>
+          <p>성분명·CAS No.·함량을 수정하면 현재 시행 기준으로 다시 판정합니다.</p>
+          <div class="reg-input-grid manual-legal-controls">
             <fieldset><legend>화학물질관리법</legend>
               <label><input type="checkbox" name="editRegChemical" value="인체급성유해성물질" /> 인체급성유해성물질</label>
               <label><input type="checkbox" name="editRegChemical" value="인체만성유해성물질" /> 인체만성유해성물질</label>
@@ -646,8 +667,8 @@
               <input id="editDesignatedQuantity" placeholder="지정수량" />
             </fieldset>
           </div>
-          <div class="field"><label for="editRegBasis">판정 기준·근거</label><textarea id="editRegBasis" rows="3"></textarea></div>
-          <label class="confirm-check"><input type="checkbox" id="editRegConfirmed" /> MSDS 원문과 기준을 확인한 규제정보입니다.</label>
+          <div class="field manual-legal-controls"><label for="editRegBasis">판정 기준·근거</label><textarea id="editRegBasis" rows="3"></textarea></div>
+          <label class="confirm-check"><input type="checkbox" id="editRegConfirmed" disabled /> 법적 판정은 현재 시행 기준으로 자동 처리됩니다.</label>
           <div class="section-row">
             <h3>사용 위치</h3>
             <button
@@ -692,6 +713,7 @@
             </button>
           </div>
         </header>
+        <div class="msds-revision-info" id="pdfRevisionInfo"></div>
         <div class="pdf-stage">
           <iframe id="pdfFrame" title="MSDS PDF" scrolling="yes"></iframe>
           <div class="pdf-canvas-viewer hidden" id="pdfCanvasViewer" aria-live="polite">
@@ -704,7 +726,7 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="./vendor/jszip.min.js"></script>
-    <script src="./config.js?v=VER12_rev.3"></script>
-    <script src="./app.js?v=VER12_rev.3"></script>
+    <script src="./config.js?v=VER13_rev.3"></script>
+    <script src="./app.js?v=VER13_rev.3"></script>
   </body>
 </html>

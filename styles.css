@@ -1299,6 +1299,18 @@ dialog header button {
     display: none;
   }
 }
+.legal-manager { margin-bottom: 14px; }
+.legal-fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.legal-fields input { width:100%; }
+.legal-source-row { display:flex; flex-wrap:wrap; gap:7px 16px; align-items:center; padding:11px 0; border-bottom:1px solid #e3e9f2; }
+.legal-source-row span,.legal-source-row small { color:#52637b; }
+.legal-source-row a { margin-left:auto; }
+.legal-analysis { margin-top:12px; line-height:1.6; }
+.revision-badge { display:inline-block; margin:4px 6px 2px 0; padding:3px 7px; border-radius:6px; background:#fff2d6; color:#885400; font-size:.72rem; font-weight:800; }
+.revision-summary { display:block; margin:4px 0; color:#52637b; }
+.msds-revision-info { display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; padding:8px 16px; background:#fff8e5; font-size:.8rem; }
+.msds-revision-info:empty { display:none; }
+@media (max-width:760px) { .legal-fields { grid-template-columns:1fr; } .msds-revision-info { max-height:110px; overflow:auto; } }
 @media (max-width: 430px) {
   .toolbar,
   .head-actions {
@@ -1944,3 +1956,4 @@ textarea {
   .edit-dialog footer { position: sticky; bottom: 0; background: #fff; }
   .edit-dialog footer .btn { min-height: 46px; flex: 1; }
 }
+.manual-legal-controls{display:none!important}

@@ -516,14 +516,13 @@ export function findRegulations(data) {
 }
 
 export function parseMsds(data) {
-  const components = findComponents(data);
+  const components = findComponents(data).map(row => /영업비밀|영업기밀|trade\s*secret/i.test(row.cas || '') ? {...row, cas:''} : row);
   const noListedComponents = /유해한\s*성분\s*없음|분류기준에\s*해당하는\s*화학물질을\s*포함하지\s*않음/i.test(data.text);
   const reviewRequired = components.some(
     (row) =>
       !row.name ||
       !row.content ||
-      !row.cas ||
-      row.cas === "영업비밀" ||
+      (!row.cas && !/^(?:additive|첨가제|영업비밀|영업기밀|기밀|filler\s*other|규제되지 않는 성분|기타\s*\(영업기밀\))/i.test(row.name || '')) ||
       row.name.length > 100 ||
       /(?:화학\s*물질명|구성\s*성분|함유량|CAS\s*(?:No|번호))/i.test(row.name),
   );
