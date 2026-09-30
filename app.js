@@ -1002,7 +1002,14 @@
       detail = state.regPath[1];
     const make = (key, label, matcher) => {
       const rows = ingredients.filter((row) => row.assessments.some((a) => matcher((a.decisions || []).filter((x) => x.status === "applicable" && x.group === (level || key)).map((x) => x.label))));
-      return { key, label, products: new Set(rows.flatMap((r) => [...r.products.keys()])).size, ingredients: rows.length, pending: rows.filter((r) => r.status === "review").length };
+      const group = level || key;
+      const matches = (doc) => matcher(regulationGroups(doc)[group] || []);
+      const productIds = new Set(items.filter(matches).map(d => d.id));
+      rows.forEach(r => r.assessments.forEach(a => {
+        if (matcher((a.decisions || []).filter(x => x.status === "applicable" && x.group === group).map(x => x.label))) productIds.add(a.doc.id);
+      }));
+      const pendingIds = new Set(pendingRegulationDocuments().map(d => d.id));
+      return { key, label, products: productIds.size, ingredients: rows.length, pending: [...productIds].filter(id => pendingIds.has(id)).length };
     };
     if (!level)
       return Object.entries(defs).map(([k, v]) =>
@@ -1062,6 +1069,15 @@
     const target = $("ingredientDashboard");
     if (!target) return;
     const q = norm($("regSearchInput")?.value), status = $("regStatusFilter")?.value || "", level = state.regPath[0], detail = state.regPath[1];
+    if (level === "dangerous") {
+      let products = state.documents.filter(d => (regulationGroups(d).dangerous || []).some(label => !detail || label.includes(detail)));
+      if (q) products = products.filter(d => norm(d.material_name).includes(q));
+      if (status === "not-applicable") products = [];
+      const pendingIds = new Set(pendingRegulationDocuments().map(d => d.id));
+      if (status === "review") products = products.filter(d => pendingIds.has(d.id));
+      target.innerHTML = '<div class="ingredient-head"><b>제품별 위험물 분류</b><span>'+products.length+'개 제품</span></div><div class="ingredient-list">'+products.map(d => '<article class="ingredient-row"><b>'+esc(d.material_name)+'</b><div>'+esc(regulationGroups(d).dangerous.join(' · '))+'</div><small>MSDS 제품 분류 · 성분별 CAS 판정과 별도 집계</small>'+ (hasPdf(d) ? '<button class="btn btn-blue btn-small" data-open-doc="'+esc(d.id)+'">PDF 보기</button>' : '')+'</article>').join('')+'</div>';
+      return;
+    }
     let rows = ingredientRows();
     if (q) rows = rows.filter((r) => norm([r.name, r.cas, ...[...r.products.values()].map((d) => d.material_name)].join(" ")).includes(q));
     if (status) rows = rows.filter((r) => r.status === status);
@@ -1803,8 +1819,8 @@
       error.code = "SECURED_PDF";
       throw error;
     }
-    const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.7");
-    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.7");
+    const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.8");
+    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.8");
     pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
     let pdf;
     try {
@@ -2472,7 +2488,7 @@
       if (!response.ok) throw new Error("PDF 파일을 불러오지 못했습니다.");
       const bytes = new Uint8Array(await response.arrayBuffer());
       if (run !== pdfRenderRun) return;
-      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.7");
+      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.8");
       pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
       activePdfTask = pdfjs.getDocument({ data: bytes });
       const pdf = await activePdfTask.promise;
@@ -2623,7 +2639,7 @@
     }
     downloadBlob(
       await zip.generateAsync({ type: "blob" }),
-      "FCT_MSDS_전체PDF_VER13_rev.7.zip",
+      "FCT_MSDS_전체PDF_VER13_rev.8.zip",
     );
   }
 
@@ -3032,7 +3048,7 @@
       );
     downloadBlob(
       await workbookBlob(rows),
-      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER13_rev.7.xlsx",
+      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER13_rev.8.xlsx",
     );
   }
   function parseCsv(text) {
@@ -4034,7 +4050,7 @@
   $("homeLogo").addEventListener("click", goHome);
   async function init() {
     try {
-      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.7');
+      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.8');
       refreshLegalRules();
     } catch (error) { console.error('법적기준 모듈 로드 실패', error); }
     state.draftUses = [emptyUse()];
