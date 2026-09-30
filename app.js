@@ -3889,6 +3889,7 @@
     const c = state.editComponents.find((x) => x.id === el.dataset.editComponent);
     if (c) {
       c[el.dataset.componentField] = el.value;
+      if (['name','cas','content'].includes(el.dataset.componentField) && el.value.trim() && el.value.trim() !== '-') c.undisclosed=false;
       const box = $("editComponentList").querySelector('[data-edit-criteria-for="'+CSS.escape(c.id)+'"]');
       if (box) box.innerHTML = componentCriteriaHtml(c, state.documents.find((d)=>d.id===state.editDocumentId));
     }
