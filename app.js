@@ -1,5 +1,7 @@
 (function () {
   "use strict";
+  // PDF.js uses the recent typed-array hex API, absent in older mobile browsers.
+  if (!Uint8Array.prototype.toHex) Object.defineProperty(Uint8Array.prototype,'toHex',{value:function(){return Array.from(this,b=>b.toString(16).padStart(2,'0')).join('');},configurable:true,writable:true});
   const C = window.FCT_CONFIG || {};
   const DEMO = C.DEMO_MODE || !C.SUPABASE_URL || !C.SUPABASE_ANON_KEY;
   const STORE_KEY = "FCT_MSDS_VER8_DEMO";
@@ -163,8 +165,8 @@
     const preset = catalogFor(doc.material_name) || {},
       stored = doc.regulations || {},
       presetReg = preset.regulations || {};
-    const components = Array.isArray(doc.components) && doc.components.length ? doc.components : preset.components || [];
-    const current = legalEngine && components.length ? legalEngine.assess(components, state.legalRules, { ph: stored.ph }) : null;
+    const components = legalEngine.normalizeComponents(doc.regulations?.admin_values?.components || (Array.isArray(doc.components) && doc.components.length ? doc.components : preset.components || []));
+    const current = legalEngine && components.length ? legalEngine.assess(components, state.legalRules, { ph: stored.ph, physicalState:stored.physical_state }) : null;
     const currentChemical = current?.regulations.chemical || [];
     const currentOsh = current?.regulations.osh || [];
     return {
@@ -472,7 +474,7 @@
       }
     }
     state.factories = fs || [];
-    state.documents = (docs || [])
+    state.documents = (docs || []).map(d => legalEngine.effectiveDocument(d))
       .map((d) => ({
         ...d,
         locations: (d.document_locations || []).map((l) => ({
@@ -487,7 +489,7 @@
           process_name: "",
         })),
       }))
-      .filter((d) => d.locations.length);
+      ;
     try {
       state.legalSources = await api('/rest/v1/legal_sources?select=*&order=created_at.desc') || [];
     } catch (e) {
@@ -627,9 +629,9 @@
   }
   function regulationReviewLabel(doc) {
     const r = metadataFor(doc).regulations || {};
-    return r.confirmed
+    return !legalEngine.requiredFields(doc).length && !r.pending_revision
       ? '<span class="review-state confirmed">확인 완료</span>'
-      : '<span class="review-state pending">자동입력 · 확인 필요</span>';
+      : '<span class="review-state pending">확인 필요</span>';
   }
   function regulationBadges(doc) {
     const g = regulationGroups(doc), grouped = [
@@ -838,7 +840,7 @@
   }
   function componentAssessment(doc, component) {
     if (legalEngine) {
-      if (legalEngine.undisclosedComponent(component)) return { status: 'unmatched', decisions: [], basis: '원문 비공개 표기 유지 · CAS 미기재 (공개된 성분은 별도 자동 판정)' };
+      if (legalEngine.undisclosedComponent(component)) return { status: 'excluded', decisions: [], basis: '비공개 성분 · 법적규제 판정 제외' };
       const rules = legalEngine.activeRules(state.legalRules).filter(r => r.cas === String(component.cas || '').trim());
       if (rules.length) {
         const result = legalEngine.assess([component], rules, { ph: metadataFor(doc).regulations.ph });
@@ -849,7 +851,7 @@
           `${d.label} ${d.threshold}% 이상 · 현재 ${component.content || '함량 판독불가'} → ${d.status === 'applicable' ? '해당' : d.status === 'not-applicable' ? '비해당' : '함량 확인 필요'} (${d.source})`).join(' · ') };
       }
       return { status: !component.name || !component.cas || !component.content ? 'review' : 'unmatched', decisions: [], basis: !component.name || !component.cas || !component.content ?
-        '성분명·CAS No.·함량 중 판독불가 데이터 입력 필요' : '현행 기준 DB 범위 확인 중' };
+        '성분명·CAS No.·함량 중 판독불가 데이터 입력 필요' : '연결된 현행 CAS 규칙 없음 · 비해당으로 확정하지 않음' };
     }
     const explicit = component.regulations || {},
       rules = LEGAL_RULES[String(component.cas || "").trim()] || [],
@@ -930,19 +932,20 @@
   }
   function componentCriteriaHtml(component, doc = null) {
     const rows = componentCriteria(component, doc);
+    if (legalEngine.undisclosedComponent(component)) return "<b>비공개 성분 · 판정 제외</b>";
     if (!component.cas && !component.content && !rows.length) return "";
     return '<b>성분별 법적 적용기준</b>' + (rows.length
       ? rows.map((row) =>
           '<span class="criterion '+esc(row.group)+'"><strong>'+esc(row.label)+'</strong><span>기준 '+esc(row.condition)+'</span><span>현재 '+esc(row.current)+'</span><em class="'+esc(row.status)+'">'+criterionStatusLabel(row.status)+'</em></span>',
         ).join("")
-      : '<span class="criteria-empty">연결된 함량 기준이 없습니다. 법적 규제현황에서 확인해 주세요.</span>');
+      : '<span class="criteria-empty">연결된 현행 CAS 규칙 없음 · 비해당으로 확정하지 않음</span>');
   }
   function ingredientRows(items = state.documents.filter((d) => d.locations?.length)) {
     const map = new Map();
     items.forEach((doc) => {
       const components = metadataFor(doc).components || [];
       components.forEach((component) => {
-        const key = component.cas && !/영업비밀/i.test(component.cas) ? `cas:${norm(component.cas)}` : `name:${norm(component.name)}`;
+        const key = legalEngine.undisclosedComponent(component) ? `secret:${doc.id}:${components.indexOf(component)}` : component.cas ? `cas:${norm(component.cas)}` : `name:${norm(component.name)}`;
         if (!map.has(key)) map.set(key, { key, name: component.name || "성분명 확인 필요", cas: component.cas || "-", products: new Map(), contents: new Set(), locations: new Map(), assessments: [] });
         const row = map.get(key), assessment = componentAssessment(doc, component);
         row.products.set(doc.id, doc);
@@ -954,16 +957,14 @@
     return [...map.values()].map((row) => {
       const applicable = row.assessments.flatMap((x) => x.decisions || []).filter((x) => x.status === "applicable"),
         hasReview = row.assessments.some((x) => x.status === "review"),
+        excluded = row.assessments.every(x => x.status === "excluded"),
         unmatched = row.assessments.every((x) => x.status === "unmatched"),
         allNot = row.assessments.length && row.assessments.every((x) => x.status === "not-applicable");
-      return { ...row, applicable, status: hasReview ? "review" : applicable.length ? "applicable" : allNot ? "not-applicable" : unmatched ? "unmatched" : "review" };
+      return { ...row, applicable, status: excluded ? "excluded" : hasReview ? "review" : applicable.length ? "applicable" : allNot ? "not-applicable" : unmatched ? "unmatched" : "review" };
     }).sort((a, b) => a.name.localeCompare(b.name, "ko"));
   }
   function pendingRegulationDocuments() {
-    return state.documents.filter((d) => d.locations?.length).filter((d) => {
-      const m = metadataFor(d), components = m.components || [];
-      return (!components.length && !m.regulations.no_listed_components) || components.some((c) => !legalEngine?.undisclosedComponent(c) && (!c.name || !c.content || !c.cas));
-    });
+    return state.documents.filter(d => legalEngine.requiredFields(d).length || d.regulations?.pending_revision);
   }
   function startRegulationReview(firstId = "") {
     state.reviewQueue = pendingRegulationDocuments().map((d) => d.id);
@@ -1065,7 +1066,7 @@
     if (q) rows = rows.filter((r) => norm([r.name, r.cas, ...[...r.products.values()].map((d) => d.material_name)].join(" ")).includes(q));
     if (status) rows = rows.filter((r) => r.status === status);
     if (level) rows = rows.filter((r) => r.assessments.some((a) => (a.decisions || []).some((d) => d.status === "applicable" && d.group === level && (!detail || d.label.includes(detail) || detail.includes(d.label)))));
-    const statusLabel = { applicable: "해당", "not-applicable": "비해당", review: "원문 판독 필요", unmatched: "기준 DB 보완 중" };
+    const statusLabel = { applicable: "해당", "not-applicable": "비해당", review: "확인 필요", unmatched: "CAS 규칙 없음", excluded: "판정 제외" };
     const pendingIds = new Set(pendingRegulationDocuments().map(d => d.id));
     target.innerHTML = rows.length ? '<div class="ingredient-head"><b>성분별 규제현황</b><span>'+rows.length+'개 성분</span></div><div class="ingredient-list">' + rows.map((r) => {
       const docs = [...r.products.values()], firstReview = docs.find((d) => pendingIds.has(d.id));
@@ -1201,7 +1202,7 @@
         ...d,
         locations: d.locations.filter((l) => locationMatches(l)),
       }))
-      .filter((d) => d.locations.length);
+      .filter((d) => d.locations.length || (!state.browse.factory_id && !state.browse.department_id && !state.browse.equipment_id));
   }
   function selectBrowse(level, id) {
     state.statusFilter = "";
@@ -1403,7 +1404,7 @@
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function renderDocuments() {
-    const activeDocuments = state.documents.filter((d) => d.locations?.length),
+    const activeDocuments = state.documents,
       list = browseGroups(),
       noMaterial = emptyEquipments(),
       pdfReady = activeDocuments.filter(hasPdf).length,
@@ -1494,7 +1495,7 @@
       .map((d) => {
         const ready = hasPdf(d),
           paths =
-            d.locations.slice(0, 2).map(pathHtml).join("") +
+            (d.locations.length ? d.locations.slice(0, 2).map(pathHtml).join("") : '<span class="more">사용처 미연결</span>') +
             (d.locations.length > 2
               ? '<span class="more">외 ' +
                 (d.locations.length - 2) +
@@ -1802,8 +1803,8 @@
       error.code = "SECURED_PDF";
       throw error;
     }
-    const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.5");
-    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.5");
+    const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.6");
+    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.6");
     pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
     let pdf;
     try {
@@ -2039,6 +2040,7 @@
     const factoryId = uses[0].factory_id;
     let doc = findCanonicalDocument(material);
     const existedBeforeSave = Boolean(doc);
+    if(doc?.regulations?.admin_values && $("updateExistingInfo").checked) throw new Error('관리자 확정 제품입니다. 제품 수정 화면에서 값을 수정하거나 새 REV를 등록해 주세요.');
     const updateExisting = !doc || $("updateExistingInfo").checked;
     const saveFile = updateExisting ? file : null;
     if (DEMO) {
@@ -2243,7 +2245,7 @@
     $("editMaterialName").value = d.material_name;
     $("editMaterialNote").value = d.notes || "";
     const meta = metadataFor(d), r = meta.regulations || {};
-    state.editComponents = (meta.components || []).map((c) => ({id:uid("editcomponent"),name:c.name||"",content:c.content||"",cas:c.cas||"",legal_status:c.legal_status||"",legal_basis:c.legal_basis||"",regulations:c.regulations||{}}));
+    state.editComponents = (meta.components || []).map((c) => ({...c,id:uid("editcomponent"),name:c.name||"",content:c.content||"",cas:c.cas||"",legal_status:c.legal_status||"",legal_basis:c.legal_basis||"",regulations:c.regulations||{}}));
     renderEditComponentRows();
     setChecked("editRegChemical", r.chemical);
     setChecked("editRegOsh", r.osh);
@@ -2254,6 +2256,14 @@
     $("editRegConfirmed").checked = Boolean(r.confirmed);
     $("editPhysicalState").value = r.physical_state || "";
     $("editPdfInput").value = "";
+    $("restoreAutoValuesBtn").disabled = !d.regulations?.auto_values;
+    $("editValueStatus").textContent = d.regulations?.pending_revision
+      ? "변경 확인 필요 · 새 PDF 추출값과 기존 확정값을 비교한 뒤 저장하세요."
+      : d.regulations?.admin_values ? "관리자 확정값 · 자동추출과 엑셀 가져오기에서 보호됩니다." : "수정 후 저장하면 관리자 확정값으로 보호됩니다.";
+    const describeValues = (v) => v ? [v.material_name, '성상: '+v.physical_state, ...(v.components || []).map((c,i)=>`${i+1}. ${c.name} / CAS ${c.cas} / ${c.content}`)].join('\n') : '추출값 없음';
+    $("revisionComparison").textContent = d.regulations?.pending_revision
+      ? '기존 확정값\n'+describeValues(d.regulations.admin_values)+'\n\n새 PDF 추출값\n'+describeValues(d.regulations.pending_revision.values) : '';
+    state.restoreAutoValues = false;
     renderEditUsageRows();
     $("editDocumentDialog").showModal();
   }
@@ -2264,8 +2274,8 @@
       name = $("editMaterialName").value.trim(),
       note = $("editMaterialNote").value.trim(),
       file = $("editPdfInput").files?.[0],
-      enteredComponents = state.editComponents.filter((c)=>c.name||c.content||c.cas).map(({name,content,cas,legal_status,legal_basis,regulations})=>({name:name.trim(),content:content.trim(),cas:cas.trim(),legal_status:legal_status||"",legal_basis:(legal_basis||"").trim(),...(regulations&&Object.keys(regulations).length?{regulations}:{})}));
-    let components = enteredComponents,
+      enteredComponents = state.editComponents.filter((c)=>c.name||c.content||c.cas).map(({name,content,cas,legal_status,legal_basis,regulations,undisclosed,source_values})=>({undisclosed,source_values,name:name.trim(),content:content.trim(),cas:cas.trim(),legal_status:legal_status||"",legal_basis:(legal_basis||"").trim(),...(regulations&&Object.keys(regulations).length?{regulations}:{})}));
+    let components = legalEngine.normalizeComponents(enteredComponents),
       regulations = {
         chemical:selectedValues("editRegChemical"), osh:selectedValues("editRegOsh"),
         dangerous:$("editRegDangerous").checked ? [$("editDangerousClass").value.trim(),$("editDesignatedQuantity").value.trim()].filter(Boolean) : [],
@@ -2280,54 +2290,38 @@
       try { parsed = (await extractPdfData(file)).parsed; } catch (error) {
         throw new Error('새 PDF 원문을 읽지 못했습니다. 보안·스캔 변환 여부를 확인해 주세요. 기존 정보와 PDF는 유지됩니다.');
       }
-      const recovered = (parsed.components || []).map(c => ({ ...c }));
-      if (!recovered.length) throw new Error('새 PDF에서 성분명·CAS No.·함량을 판독하지 못했습니다. 원문에서 읽히지 않은 값만 입력해 주세요. 기존 PDF와 정보는 유지됩니다.');
-      components = recovered.map(c => {
-        const prior = enteredComponents.find(x => x.cas && x.cas === c.cas) ||
-          enteredComponents.find(x => x.name && c.name && norm(x.name) === norm(c.name)) || {};
-        return { ...c, name:c.name || prior.name || '', cas:c.cas || prior.cas || '',
-          content:c.content || (prior.content && prior.content !== (metadataFor(d).components || []).find(x => x.cas === prior.cas)?.content ? prior.content : '') };
-      });
-      if (components.some(c => !legalEngine.undisclosedComponent(c) && (!c.name || !c.content || !c.cas))) {
-        const fields = [...new Set(components.filter(c=>!legalEngine.undisclosedComponent(c)).flatMap(c=>[...(!c.name?['성분명']:[]),...(!c.cas?['CAS No.']:[]),...(!c.content?['함량']:[])]))].join('·');
-        throw new Error(`${fields} 판독불가. 해당 값만 입력한 뒤 저장해 주세요. 기존 PDF와 정보는 유지됩니다.`);
-      }
-      const physical = regulations.physical_state || metadataFor(d).regulations.physical_state;
-      const assessed = legalEngine.assess(components, state.legalRules, { physicalState: physical, ph: regulations.ph });
-      const prior = metadataFor(d).regulations;
-      regulations = { ...prior, ...regulations,
-        chemical: assessed.regulations.chemical,
-        osh: [...new Set([...(prior.osh || []).filter(x => !['관리대상 유해물질','특별관리물질'].includes(x)), ...assessed.regulations.osh])],
-        dangerous: prior.dangerous || [], physical_state: physical,
-        confirmed: !assessed.review,
-        checked_at: legalEngine.todayKorea(), input_method: 'pdf-revision-auto',
-        missing_fields: [...new Set(components.flatMap(c => [
-          ...(!legalEngine.undisclosedComponent(c) && !c.name ? ['성분명'] : []), ...(!legalEngine.undisclosedComponent(c) && !c.cas ? ['CAS No.'] : []),
-          ...(!legalEngine.undisclosedComponent(c) && !c.content ? ['함량'] : []),
-        ]))],
+      const prior = d.regulations || {};
+      const extracted = {
+        material_name: parsed.productName || d.material_name,
+        components: legalEngine.normalizeComponents(parsed.components || []),
+        physical_state: parsed.physicalState || '',
       };
-      const change = legalEngine.diffProduct({components:metadataFor(d).components, regulations:prior}, {components, regulations});
-      const priorRevision = Number(prior.msds_revision || 0);
-      regulations.msds_revision = priorRevision + 1;
-      regulations.msds_history = [...(prior.msds_history || []), {
-        revision: priorRevision + 1, at: new Date().toISOString(),
-        file_name: d.file_name, storage_path: d.storage_path,
-        components: metadataFor(d).components, regulations: {chemical:prior.chemical,osh:prior.osh,dangerous:prior.dangerous},
-        summary:change.summary, component_changes:change.componentChanges,
-        content_changes:change.contentChanges, regulation_changes:change.regulationChanges,
-      }];
-      regulations.msds_last_change = change;
-    }
-    if (!file && legalEngine) {
-      const assessed = legalEngine.assess(components, state.legalRules, { ph: metadataFor(d).regulations.ph });
-      const prior = metadataFor(d).regulations;
-      regulations = { ...prior, ...regulations,
-        chemical: assessed.regulations.chemical,
-        osh: [...new Set([...(prior.osh || []).filter(x => !['관리대상 유해물질','특별관리물질'].includes(x) || assessed.decisions.some(y => y.label === x && y.status === 'review')), ...assessed.regulations.osh])],
-        confirmed: !assessed.review,
-        checked_at: legalEngine.todayKorea(),
+      const savedValues = prior.admin_values || legalEngine.valuesOf(d);
+      const change = JSON.stringify(savedValues) !== JSON.stringify(extracted);
+      regulations = {...prior, ...regulations, auto_values:extracted,
+        admin_values: savedValues,
+        pending_revision: change ? {at:new Date().toISOString(),file_name:file.name,values:extracted} : null,
+        msds_revision:Number(prior.msds_revision || 0)+1,
+        msds_history:[...(prior.msds_history || []),{at:new Date().toISOString(),file_name:d.file_name,storage_path:d.storage_path,values:savedValues}],
+        msds_last_change:{summary:change ? '새 PDF와 기존 확정값의 변경 확인 필요' : '확정값과 새 PDF 추출값 일치'},
       };
+      components=savedValues.components;
+      regulations.physical_state=savedValues.physical_state;
+    } else {
+      const next={material_name:name,components,regulations:{...d.regulations,...regulations,auto_values:d.regulations?.auto_values || legalEngine.valuesOf(d)}};
+      const missing=legalEngine.requiredFields(next);
+      if(missing.length && !state.restoreAutoValues) throw new Error('필수정보를 입력해 주세요: '+missing.join(', '));
+      const confirmed=legalEngine.confirmValues(next);
+      regulations=confirmed.regulations;
+      components=confirmed.components;
+      if(state.restoreAutoValues) { regulations.admin_values=null; regulations.admin_confirmed_at=null; }
     }
+    const assessed=legalEngine.assess(components,state.legalRules,{ph:regulations.ph,physicalState:regulations.physical_state});
+    regulations.chemical=assessed.regulations.chemical;
+    regulations.osh=[...new Set([...(regulations.osh || []).filter(x=>!['관리대상 유해물질','특별관리물질'].includes(x)),...assessed.regulations.osh])];
+    regulations.confirmed=!regulations.pending_revision && !legalEngine.requiredFields({material_name:name,components,regulations}).length;
+    regulations.legal_decisions=assessed.decisions;
+    regulations._value_action=file ? 'revision' : state.restoreAutoValues ? 'restore' : 'confirm';
     if (note && !state.notesSupported) {
       toast(
         "비고 저장 설정이 필요합니다. VER12 데이터베이스 업데이트를 먼저 실행해 주세요.",
@@ -2340,7 +2334,7 @@
     }
     const locations = uses.map(locationFromUse);
     if (DEMO) {
-      d.material_name = name;
+      d.material_name = file ? regulations.admin_values.material_name : name;
       d.notes = note;
       d.components = components;
       d.regulations = regulations;
@@ -2358,7 +2352,7 @@
       demoSave();
     } else {
       let patch = {
-        material_name: name,
+        material_name: file ? regulations.admin_values.material_name : name,
         ...(state.notesSupported ? { notes: note } : {}),
         ...(state.metadataSupported ? { components, regulations } : {}),
         updated_at: new Date().toISOString(),
@@ -2367,7 +2361,7 @@
         if (file.size > 50 * 1024 * 1024) { toast("PDF는 50MB 이하만 등록할 수 있습니다."); return; }
         const old = hasPdf(d) ? d.storage_path : "",
           path =
-            "shared/" + d.id + "/" + storageSafeName(file.name);
+            "shared/" + d.id + "/rev-" + Date.now() + "/" + storageSafeName(file.name);
         await storagePut(path, file);
         patch = {
           ...patch,
@@ -2377,10 +2371,10 @@
         };
         // 개정 전 PDF는 이력에서 열람할 수 있도록 저장소에서 지우지 않는다.
       }
-      await api("/rest/v1/documents?id=eq." + encodeURIComponent(d.id), {
-        method: "PATCH",
-        body: JSON.stringify(patch),
+      const saved = await api("/rest/v1/documents?id=eq." + encodeURIComponent(d.id) + "&updated_at=eq." + encodeURIComponent(d.updated_at), {
+        method: "PATCH", headers:{Prefer:'return=representation'}, body:JSON.stringify(patch),
       });
+      if(!saved?.length) throw new Error('다른 작업에서 변경되었습니다. 새로고침 후 다시 저장해 주세요.');
       const linkedEquipmentIds = new Set((d.locations || []).map((x) => x.equipment_id));
       for (const l of locations) {
         if (linkedEquipmentIds.has(l.equipment_id)) continue;
@@ -2478,7 +2472,7 @@
       if (!response.ok) throw new Error("PDF 파일을 불러오지 못했습니다.");
       const bytes = new Uint8Array(await response.arrayBuffer());
       if (run !== pdfRenderRun) return;
-      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.5");
+      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.6");
       pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
       activePdfTask = pdfjs.getDocument({ data: bytes });
       const pdf = await activePdfTask.promise;
@@ -2629,7 +2623,7 @@
     }
     downloadBlob(
       await zip.generateAsync({ type: "blob" }),
-      "FCT_MSDS_전체PDF_VER13_rev.5.zip",
+      "FCT_MSDS_전체PDF_VER13_rev.6.zip",
     );
   }
 
@@ -2963,6 +2957,9 @@
           "미입력항목",
           "비고",
           "PDF파일명",
+          "문서ID",
+          "성분행",
+          "관리자확정",
         ],
       ];
     state.factories
@@ -2980,7 +2977,7 @@
                     ? m.components
                     : [{ name: "", content: "", cas: "" }],
                   r = m.regulations || {};
-                comps.forEach((c) => {
+                comps.forEach((c, componentIndex) => {
                   const assessment = componentAssessment(doc, c);
                   rows.push([
                     fa.name,
@@ -3002,6 +2999,9 @@
                     (r.missing_fields || []).join(", "),
                     doc.notes || "",
                     shownFileName(doc),
+                    doc.id,
+                    componentIndex + 1,
+                    r.admin_values ? '관리자 확정' : '',
                   ]);
                 });
               });
@@ -3032,7 +3032,7 @@
       );
     downloadBlob(
       await workbookBlob(rows),
-      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER13_rev.5.xlsx",
+      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER13_rev.6.xlsx",
     );
   }
   function parseCsv(text) {
@@ -3258,6 +3258,8 @@
         basis: at("판정근거"),
         confirmed: at("규제확인"),
         method: at("입력방식"),
+        documentId: at("문서ID"),
+        componentRow: at("성분행"),
         missing: at("미입력항목"),
         n: at("비고"),
         pdf: at("PDF파일명"),
@@ -3287,6 +3289,8 @@
         basis: c.basis >= 0 ? String(r[c.basis] || "").trim() : "",
         confirmed: c.confirmed >= 0 && /^(확인|y|yes|true|1)$/i.test(String(r[c.confirmed] || "").trim()),
         method: c.method >= 0 ? String(r[c.method] || "").trim() : "",
+        documentId: c.documentId >= 0 ? String(r[c.documentId] || "").trim() : "",
+        componentRow: c.componentRow >= 0 ? String(r[c.componentRow] || "").trim() : "",
         missing: c.missing >= 0 ? String(r[c.missing] || "").split(/[,;\n]/).map(x=>x.trim()).filter(Boolean) : [],
         note: c.n >= 0 ? String(r[c.n] || "").trim() : "",
         pdf: c.pdf >= 0 ? String(r[c.pdf] || "").trim() : "",
@@ -3317,11 +3321,12 @@
     valid
       .filter((x) => x.material)
       .forEach((x) => {
-        const key = norm(x.material);
+        const key = x.documentId || norm(x.material);
         if (!groups.has(key))
           groups.set(key, {
             factory: x.factory,
             material: x.material,
+            documentId: x.documentId,
             note: x.note,
             pdf: x.pdf,
             components: [],
@@ -3329,12 +3334,13 @@
             rows: [],
           });
         const g = groups.get(key);
+        if(g.pdf && x.pdf && norm(g.pdf)!==norm(x.pdf)) throw new Error('동일 제품명에 서로 다른 PDF가 있습니다. 등급별 제품명을 구분해 주세요: '+x.material);
         g.rows.push(x);
         if (x.note) g.note = x.note;
         if (x.pdf) g.pdf = x.pdf;
         if (x.component || x.content || x.cas) {
-          const ck = [norm(x.component),norm(x.content),norm(x.cas)].join("|");
-          if (!g.components.some((c)=>[norm(c.name),norm(c.content),norm(c.cas)].join("|")===ck)) g.components.push({name:x.component,content:x.content,cas:x.cas,legal_status:/^해당$/.test(x.legalStatus)?"applicable":/^비해당$/.test(x.legalStatus)?"not-applicable":/^확인/.test(x.legalStatus)?"review":"",legal_basis:x.legalBasis||""});
+          const ck = x.componentRow || [norm(x.component),norm(x.content),norm(x.cas)].join("|");
+          if (!g.components.some((c)=>c.import_row===ck)) g.components.push({import_row:ck,name:x.component,content:x.content,cas:x.cas,undisclosed:x.component==='-'&&x.cas==='-'&&x.content==='-',legal_status:/^해당$/.test(x.legalStatus)?"applicable":/^비해당$/.test(x.legalStatus)?"not-applicable":/^확인/.test(x.legalStatus)?"review":"",legal_basis:x.legalBasis||""});
         }
         for (const k of ["chemical","osh","dangerous"]) g.regulations[k] = [...new Set([...g.regulations[k],...x[k]])];
         if (x.basis) g.regulations.basis = x.basis;
@@ -3425,7 +3431,7 @@
     for (const group of plan.groups) {
       const uses = group.rows.map((r) => pathMap.get(r.row)),
         fid = uses[0].factory_id;
-      let doc = findCanonicalDocument(group.material);
+      let doc = group.documentId ? state.documents.find(d=>d.id===group.documentId) : findCanonicalDocument(group.material);
       const source = group.pdf
         ? state.documents.find(
             (x) => hasPdf(x) && norm(x.file_name) === norm(group.pdf),
@@ -3433,7 +3439,11 @@
         : null;
       let blob = group.pdf ? pdfMap.get(norm(group.pdf)) || null : null;
       if (!blob && source) blob = await resolveDocBlob(source);
-      if (blob) await enrichBulkGroupFromPdf(group, blob);
+      if (doc?.regulations?.admin_values) {
+        blob=null;
+        group.components=doc.components;
+        group.regulations=doc.regulations;
+      } else if (blob) await enrichBulkGroupFromPdf(group, blob);
       if (DEMO) {
         if (!doc) {
           const id = uid("material");
@@ -3581,6 +3591,22 @@
     renderDataSelects();
     renderLegalManager();
   }
+  $("restoreAutoValuesBtn").addEventListener('click',()=>{
+    const d=state.documents.find(x=>x.id===state.editDocumentId), v=d?.regulations?.auto_values;
+    if(!v || !confirm('자동추출값을 불러옵니다. 저장하면 관리자 확정이 해제됩니다. 계속할까요?')) return;
+    $("editMaterialName").value=v.material_name || '';
+    $("editPhysicalState").value=v.physical_state || '';
+    state.editComponents=legalEngine.normalizeComponents(v.components).map(c=>({...c,id:uid('editcomponent')}));
+    renderEditComponentRows();
+    state.restoreAutoValues=true;
+    $("editValueStatus").textContent='자동추출값 복원 대기 · 내용을 확인하고 저장하세요.';
+  });
+  $("editDocumentDialog").addEventListener('input',()=>{
+    if(state.restoreAutoValues) {
+      state.restoreAutoValues=false;
+      $("editValueStatus").textContent='복원값을 수정했습니다. 저장하면 새 관리자 확정값으로 보호됩니다.';
+    }
+  });
   async function saveEditedDocumentSafely(e) {
     e.preventDefault();
     e.stopImmediatePropagation();
@@ -3852,6 +3878,7 @@
     const c = state.draftComponents.find((x) => x.id === el.dataset.component);
     if (c) {
       c[el.dataset.componentField] = el.value;
+      if (['name','cas','content'].includes(el.dataset.componentField) && el.value.trim() && el.value.trim() !== '-') c.undisclosed=false;
       const box = $("componentList").querySelector('[data-criteria-for="'+CSS.escape(c.id)+'"]');
       if (box) box.innerHTML = componentCriteriaHtml(c);
     }
@@ -4006,7 +4033,7 @@
   $("homeLogo").addEventListener("click", goHome);
   async function init() {
     try {
-      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.5');
+      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.6');
       refreshLegalRules();
     } catch (error) { console.error('법적기준 모듈 로드 실패', error); }
     state.draftUses = [emptyUse()];
@@ -4043,3 +4070,4 @@
   }
   init();
 })();
+

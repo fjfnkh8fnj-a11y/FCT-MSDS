@@ -1,4 +1,6 @@
 import { CATALOG } from './legal-catalog.mjs';
+import { undisclosedComponent, validCas } from './material-values.mjs';
+export { undisclosedComponent, normalizeComponents, requiredFields, valuesOf, effectiveDocument, confirmValues } from './material-values.mjs';
 // 법령 판정은 시행일과 구성성분의 CAS/함량을 기준으로 수행한다.
 // 출처가 확인되지 않는 조항은 자동 확정하지 않는다.
 export const CHECKED_ON = '2026-09-29';
@@ -36,23 +38,22 @@ const osh = {
 export const DEFAULT_RULES = CATALOG.rules;
 export const LEGAL_SOURCES = CATALOG.sources;
 export const todayKorea = () => new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-export const undisclosedComponent = c => /^(?:additive|첨가제|영업비밀|영업기밀|기밀|trade\s*secret|filler\s*other|규제되지 않는 성분|기타\s*\(영업기밀\))/i.test(String(c?.name || '').trim()) || /영업비밀|영업기밀|trade\s*secret/i.test(String(c?.cas || ''));
 
 export function contentRange(value) {
-  const raw = String(value || '').replace(/,/g, '.').replace(/％/g, '%').trim();
+  const raw = String(value || '').replace(/,/g, '.').replace(/％/g, '%').trim().replace(/^(.*?)\s*(이상|이하|미만|초과)$/, '$2 $1');
   const numbers = [...raw.matchAll(/\d+(?:\.\d+)?/g)].map(x => Number(x[0]));
   if (!numbers.length || numbers.some(x => x > 100) || /영업비밀|secret/i.test(raw)) return null;
   if (numbers.length > 1) return { min: Math.min(...numbers), max: Math.max(...numbers),
     minInclusive: !/^(?:>|초과)/.test(raw) || /^>=/.test(raw), maxInclusive: !/<\s*\d/.test(raw) };
-  if (/^(?:<|미만)/.test(raw)) return { min: 0, max: numbers[0], maxInclusive: false };
   if (/^(?:<=|≤|이하)/.test(raw)) return { min: 0, max: numbers[0], maxInclusive: true };
+  if (/^(?:<|미만)/.test(raw)) return { min: 0, max: numbers[0], maxInclusive: false };
   if (/^(?:>=|≥|이상)/.test(raw)) return { min: numbers[0], max: 100, minInclusive: true };
   if (/^(?:>|초과)/.test(raw)) return { min: numbers[0], max: 100, minInclusive: false };
   return { min: numbers[0], max: numbers[0], maxInclusive: true };
 }
 export function compare(range, threshold) {
   if (!range || typeof threshold !== 'number') return 'review';
-  if (range.min >= threshold && !(range.min === threshold && range.minInclusive === false)) return 'applicable';
+  if (range.min >= threshold) return 'applicable';
   if (range.max < threshold || range.max === threshold && range.maxInclusive === false) return 'not-applicable';
   return 'review';
 }
@@ -86,6 +87,7 @@ function rulesByCas(rules, on) {
 export function assess(components, rules, { on = todayKorea(), physicalState = '', ph = null } = {}) {
   const index = rulesByCas(rules, on), decisions = [];
   for (const component of components || []) {
+    if (undisclosedComponent(component)) continue;
     const cas = String(component.cas || '').trim(), range = contentRange(component.content);
     for (const criterion of index.get(cas) || []) {
       let status = compare(range, Number(criterion.threshold));
@@ -97,7 +99,7 @@ export function assess(components, rules, { on = todayKorea(), physicalState = '
   decisions.filter(d => d.status === 'applicable').forEach(d => {
     if (!regulations[d.group].includes(d.label)) regulations[d.group].push(d.label);
   });
-  return { decisions, regulations, review: decisions.some(d => d.status === 'review') || (components || []).some(c => !undisclosedComponent(c) && (!c.name || !c.content || !c.cas)), undisclosed: (components || []).some(undisclosedComponent), physicalState };
+  return { decisions, regulations, review: decisions.some(d => d.status === 'review') || (components || []).some(c => !undisclosedComponent(c) && (!c.name || !contentRange(c.content) || !validCas(c.cas))), undisclosed: (components || []).some(undisclosedComponent), physicalState };
 }
 export function diffProduct(before, after) {
   const map = cs => new Map((cs || []).map(c => [String(c.cas || c.name).trim(), c]));
@@ -139,3 +141,4 @@ export function parseLegalText(text, { source = '', effectiveDate = '' } = {}) {
     complete: casRows > 0 && unreadable.length === 0 && casRows === rows.length,
     needsSourceData: !sourceName || sourceName === '법령명 판독불가' || !(effectiveDate || inferredDate) };
 }
+

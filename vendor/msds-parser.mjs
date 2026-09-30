@@ -1,3 +1,4 @@
+import { normalizeComponents, undisclosedComponent, validCas } from './material-values.mjs';
 const CAS_RE = /\b\d{2,7}\s*-\s*\d{2}\s*-\s*\d\b/;
 const PRODUCT_LABEL_RE = /(?:^|\s)(?:가\s*[.)]?\s*)?(?:제품명|제품의\s*명칭|화학품\s*명칭|상품명|product\s*(?:name|identifier))\s*[:：]?/i;
 const CHEMICAL_HEADER_RE = /화학\s*물질\s*명|화학명(?:\s*또는\s*일반명)?|물질명|구성\s*성분(?:의\s*명칭)?|성분명|chemical\s*name|ingredient/i;
@@ -105,7 +106,7 @@ function normalizeCas(value) {
       .reduce((total, digit, index) => total + Number(digit) * (index + 1), 0);
     if (sum % 10 === check) return normalized;
   }
-  return /영업비밀|기밀|trade\s*secret/i.test(value) ? "영업비밀" : "";
+  return /영업비밀|영업기밀|기밀|trade[\s-]*secret|proprietary|confidential|비대상물질|규제되지 않는 성분|T-\d{4}-\d{5}/i.test(value) ? "영업비밀" : "";
 }
 
 function groupLines(items) {
@@ -153,7 +154,6 @@ function cleanProduct(value) {
   return clean(value)
     .replace(/^[\s·•\-:：]+/, "")
     .replace(/^대표\s*제품명\s*[:：]\s*/i, "")
-    .replace(/([A-Za-z])(?=\d)/g, "$1 ")
     .replace(/\s+(?:MSDS|SDS)\s*(?:번호|No\.?).*$/i, "")
     .trim();
 }
@@ -242,7 +242,7 @@ function cleanComponentName(value, cas) {
     .replace(/\s+CAS\s*번호란이\s*빈\s*칸인\s*화학물질입니다\.?$/i, "")
     .replace(/^\d+\)\s*/, "")
     .trim();
-  if (/물질안전보건자료|제품\s*사양|MSDS\s*번호|문서\s*번호|페이지\s*Page|에\s*따르면/i.test(name)) return "";
+  if (/물질안전보건자료|제품\s*사양|MSDS\s*번호|문서\s*번호|페이지\s*Page|에\s*따르면|이\s*자료는|※\s*비고|기재\s*의무/i.test(name)) return "";
   return name;
 }
 
@@ -281,13 +281,14 @@ export function rowsFromPositionedTable(page, layout) {
   const footnote = page.lines.find(
     (line) => line.y < anchors.at(-1).y && line.y > minimumY && FOOTNOTE_RE.test(line.text),
   );
-  const chemicalStart = Math.min(layout.chemical.x, layout.cas.x, layout.amount.x) - 100;
+  const chemicalStart = Math.min(...page.items.map(item=>item.x));
   const nextColumnX = [layout.alias?.x, layout.cas.x, layout.amount.x]
     .filter((x) => Number.isFinite(x) && x > layout.chemical.x + 12)
     .sort((a, b) => a - b)[0];
-  const chemicalEnd = (layout.chemical.x + (nextColumnX || layout.cas.x)) / 2;
-  const casColumnStart = layout.cas.x - 55;
-  const casColumnEnd = amountStart;
+  const extraIdColumn = layout.line.cells.find(c=>/^(?:KE|EC)\b/.test(c.text) && c.x>layout.cas.x);
+  const chemicalEnd = extraIdColumn ? (nextColumnX || layout.cas.x)-5 : (layout.chemical.x+(nextColumnX || layout.cas.x))/2;
+  const casColumnStart = extraIdColumn ? layout.cas.x - 12 : layout.cas.x - 55;
+  const casColumnEnd = extraIdColumn ? extraIdColumn.x - 5 : amountStart;
   const rows = [];
 
   anchors.forEach((anchor, index) => {
@@ -314,13 +315,18 @@ export function rowsFromPositionedTable(page, layout) {
     const amountMatch = amountColumnText
       .replace(/\s/g, "")
       .match(/(?:[<>≤≥]=?)?\d+(?:\.\d+)?(?:[-~–—](?:[<>≤≥]=?)?\d+(?:\.\d+)?)?%?|영업비밀|기밀|balance|trace/i);
-    const amount = normalizeAmount(
+    let amount = normalizeAmount(
       anchor.anchorType === "amount" ? anchor.text : amountMatch?.[0] || "",
     );
     const casText = joinColumnItems(
       inBand.filter((item) => item.x >= casColumnStart && item.x < casColumnEnd),
     );
-    const cas = normalizeCas(anchor.anchorType === "cas" ? anchor.text : casText);
+    const cas = normalizeCas(anchor.anchorType === "cas" ? anchor.text : casText) || normalizeCas(joinColumnItems(inBand));
+    if(!amount && validCas(cas)) {
+      const line=page.lines.find(l=>Math.abs(l.y-anchor.y)<3 && normalizeCas(l.text)===cas);
+      const tail=line?.text.split(cas)[1]?.trim();
+      if(tail && AMOUNT_RE.test(tail)) amount=normalizeAmount(tail);
+    }
     if (name) rows.push({ name, content: amount, cas });
   });
   return rows;
@@ -386,7 +392,7 @@ function fallbackRows(data) {
     if (!name || CHEMICAL_HEADER_RE.test(name)) name = clean(body[i - 1]?.text || "");
     const afterCas = clean(rawCas ? line.text.split(rawCas)[1] : "");
     const amount = normalizeAmount(
-      ((amountBefore?.[0] || afterCas.match(/(?:[<>≤≥]=?\s*)?\d+(?:\.\d+)?(?:\s*[-~–—]\s*(?:[<>≤≥]=?\s*)?\d+(?:\.\d+)?)?\s*%?/)?.[0]) || ""),
+      ((AMOUNT_RE.test(afterCas) ? afterCas : amountBefore?.[0]) || ""),
     );
     if (name && !rows.some((row) => row.cas === cas)) rows.push({ name, content: amount, cas });
   }
@@ -399,6 +405,7 @@ export function findComponents(data) {
   let inCompositionSection = false;
   data.pages.forEach((page) => {
     if (page.lines.some((line) => SECTION3_RE.test(line.text))) inCompositionSection = true;
+    if (!inCompositionSection) return;
     const detectedLayout = headerLayout(page);
     if (detectedLayout) activeLayout = detectedLayout;
     const section4Line = page.lines.find((line) => SECTION4_RE.test(line.text));
@@ -421,7 +428,9 @@ export function findComponents(data) {
   });
   const fallback = fallbackRows(data);
   const unique = [];
-  [...rows, ...fallback].forEach((row) => {
+  // Prefer positioned rows; fallback must not merge two source rows with a secret CAS.
+  const candidates = rows.length ? [...rows, ...fallback.filter(f => validCas(f.cas) && !rows.some(r=>r.cas===f.cas))] : fallback;
+  candidates.forEach((row) => {
     const normalized = {
       name: cleanComponentName(clean(row.name)
         .replace(/^(?:화학\s*물질명|물질명|성분명)\s*[:：]?\s*/i, "")
@@ -442,7 +451,7 @@ export function findComponents(data) {
       normalized.name = "";
     if (normalized.name) {
       const existingIndex = unique.findIndex((item) =>
-        normalized.cas ? item.cas === normalized.cas : !item.cas && item.name === normalized.name,
+        validCas(normalized.cas) ? item.cas === normalized.cas && (item.content === normalized.content || !item.content || !normalized.content) : item.name === normalized.name && item.content === normalized.content && item.cas === normalized.cas,
       );
       if (existingIndex < 0) unique.push(normalized);
       else {
@@ -516,21 +525,22 @@ export function findRegulations(data) {
 }
 
 export function parseMsds(data) {
-  const components = findComponents(data).map(row => /영업비밀|영업기밀|trade\s*secret/i.test(row.cas || '') ? {...row, cas:''} : row);
+  const components = normalizeComponents(findComponents(data));
   const noListedComponents = /유해한\s*성분\s*없음|분류기준에\s*해당하는\s*화학물질을\s*포함하지\s*않음/i.test(data.text);
   const reviewRequired = components.some(
-    (row) =>
+    (row) => !undisclosedComponent(row) && (
       !row.name ||
       !row.content ||
       (!row.cas && !/^(?:additive|첨가제|영업비밀|영업기밀|기밀|filler\s*other|규제되지 않는 성분|기타\s*\(영업기밀\))/i.test(row.name || '')) ||
-      row.name.length > 100 ||
-      /(?:화학\s*물질명|구성\s*성분|함유량|CAS\s*(?:No|번호))/i.test(row.name),
+      /(?:화학\s*물질명|구성\s*성분|함유량|CAS\s*(?:No|번호))/i.test(row.name)),
   );
   return {
     productName: findProductName(data) || (components.length === 1 ? components[0].name : ""),
+    physicalState: data.text.match(/(?:물리적\s*상태|성상)\s*[:：]?\s*(액체|고체|기체)/i)?.[1] || '',
     components,
     regulations: findRegulations(data),
     noListedComponents,
     reviewRequired,
   };
 }
+
