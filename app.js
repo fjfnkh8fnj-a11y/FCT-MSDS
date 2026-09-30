@@ -1053,7 +1053,7 @@
             "개 제품</strong><small>규제 성분 " +
             x.ingredients +
             "개</small>" +
-            (x.pending ? '<em class="reg-review-count">확인 필요 '+x.pending+'개</em>' : '<em class="reg-review-count done">전체 확인 완료</em>') +
+            (x.pending ? '<em class="reg-review-count">확인 필요 '+x.pending+'개</em>' : '<em class="reg-review-count done">입력정보 누락 없음</em>') +
             "</button>",
         )
         .join("");
