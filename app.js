@@ -1803,8 +1803,8 @@
       error.code = "SECURED_PDF";
       throw error;
     }
-    const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.6");
-    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.6");
+    const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.7");
+    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.7");
     pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
     let pdf;
     try {
@@ -2310,7 +2310,7 @@
     } else {
       const next={material_name:name,components,regulations:{...d.regulations,...regulations,auto_values:d.regulations?.auto_values || legalEngine.valuesOf(d)}};
       const missing=legalEngine.requiredFields(next);
-      if(missing.length && !state.restoreAutoValues) throw new Error('필수정보를 입력해 주세요: '+missing.join(', '));
+      // Preserve partial corrections; unresolved fields remain in the review queue.
       const confirmed=legalEngine.confirmValues(next);
       regulations=confirmed.regulations;
       components=confirmed.components;
@@ -2472,7 +2472,7 @@
       if (!response.ok) throw new Error("PDF 파일을 불러오지 못했습니다.");
       const bytes = new Uint8Array(await response.arrayBuffer());
       if (run !== pdfRenderRun) return;
-      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.6");
+      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.7");
       pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
       activePdfTask = pdfjs.getDocument({ data: bytes });
       const pdf = await activePdfTask.promise;
@@ -2623,7 +2623,7 @@
     }
     downloadBlob(
       await zip.generateAsync({ type: "blob" }),
-      "FCT_MSDS_전체PDF_VER13_rev.6.zip",
+      "FCT_MSDS_전체PDF_VER13_rev.7.zip",
     );
   }
 
@@ -3032,7 +3032,7 @@
       );
     downloadBlob(
       await workbookBlob(rows),
-      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER13_rev.6.xlsx",
+      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER13_rev.7.xlsx",
     );
   }
   function parseCsv(text) {
@@ -4034,7 +4034,7 @@
   $("homeLogo").addEventListener("click", goHome);
   async function init() {
     try {
-      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.6');
+      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.7');
       refreshLegalRules();
     } catch (error) { console.error('법적기준 모듈 로드 실패', error); }
     state.draftUses = [emptyUse()];
