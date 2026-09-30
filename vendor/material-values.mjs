@@ -1,12 +1,14 @@
 // Keep source rows separate even when their displayed CAS values are identical.
 const secret = /영업\s*[비기]밀|기밀|trade[\s-]*secret|proprietary|confidential|비공개|비대상물질|규제되지 않는 성분|T-\d{4}-\d{5}/i;
 export const undisclosedComponent = c => Boolean(c?.undisclosed) || secret.test([c?.name,c?.cas,c?.content].join(' '));
+export const additiveWithoutCas = c => /^additives?$/i.test(String(c?.name || '').trim()) && !validCas(c?.cas);
+export const excludedComponent = c => undisclosedComponent(c) || additiveWithoutCas(c);
 export function normalizeComponents(rows = []) {
   return rows.map(c => undisclosedComponent(c) ? {
     ...c, undisclosed: true,
     source_values: c.source_values || {name:c.name || '',cas:c.cas || '',content:c.content || ''},
     name:'-', cas:'-', content:'-', legal_status:'excluded', regulations:{},
-  } : {...c});
+  } : additiveWithoutCas(c) ? {...c, cas:'-', cas_not_assigned:true, legal_status:'excluded', exclusion_reason:'첨가제 총칭 · 원문 CAS 미부여', regulations:{}} : {...c});
 }
 export function validCas(value) {
   const s=String(value || '').replace(/\s/g,'');
@@ -21,7 +23,7 @@ export function requiredFields(doc) {
   const rows=doc.components || [];
   if (!rows.length && !doc.regulations?.no_listed_components) missing.push('성분');
   rows.forEach((c,i)=>{
-    if(undisclosedComponent(c)) return;
+    if(excludedComponent(c)) return;
     if(!String(c.name || '').trim() || c.name==='-') missing.push(`${i+1}행 성분명`);
     if(!validCas(c.cas)) missing.push(`${i+1}행 CAS No.`);
     if(!/\d|balance|잔량|trace/i.test(c.content || '') || /미입력|판독불가/.test(c.content)) missing.push(`${i+1}행 함량`);
