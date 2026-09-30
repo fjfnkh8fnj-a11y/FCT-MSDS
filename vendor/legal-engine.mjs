@@ -1,6 +1,6 @@
 import { CATALOG } from './legal-catalog.mjs';
-import { undisclosedComponent, validCas } from './material-values.mjs';
-export { undisclosedComponent, normalizeComponents, requiredFields, valuesOf, effectiveDocument, confirmValues } from './material-values.mjs';
+import { undisclosedComponent, excludedComponent, validCas } from './material-values.mjs?v=VER13_rev.9';
+export { excludedComponent, additiveWithoutCas, undisclosedComponent, normalizeComponents, requiredFields, valuesOf, effectiveDocument, confirmValues } from './material-values.mjs?v=VER13_rev.9';
 // 법령 판정은 시행일과 구성성분의 CAS/함량을 기준으로 수행한다.
 // 출처가 확인되지 않는 조항은 자동 확정하지 않는다.
 export const CHECKED_ON = '2026-09-29';
@@ -35,7 +35,21 @@ const osh = {
   '7758-99-8': [1], '13462-88-9': [1], '124594-15-6': [1],
   '1309-48-4': [1], '13463-67-7': [1], '1308-38-9': [1],
 };
-export const DEFAULT_RULES = CATALOG.rules;
+// 별표 12의 집합명 조항을 현재 등록된 화합물의 CAS에 연결한다.
+// 불용성 니켈/6가 크롬의 특별관리 조건을 모든 화합물로 확대하지 않는다.
+const compoundGroups = {
+  '1317-38-0':'구리 및 그 화합물', '7758-99-8':'구리 및 그 화합물',
+  '1344-28-1':'알루미늄 및 그 화합물', '1302-93-8':'알루미늄 및 그 화합물',
+  '1309-37-1':'철 및 그 화합물', '7705-08-0':'철 및 그 화합물', '7758-94-3':'철 및 그 화합물',
+  '13462-88-9':'니켈 및 그 무기화합물', '124594-15-6':'니켈 및 그 무기화합물',
+  '1308-38-9':'크롬 및 그 화합물',
+};
+const compoundRules = Object.entries(compoundGroups).map(([cas, family]) => ({
+  ...rule(cas,'osh','관리대상 유해물질',1,SOURCE.osh,`별표 12 제2호: ${family} · 혼합물 중량비율 1% 이상`),
+  source_url:'https://www.law.go.kr/LSW/flDownload.do?bylClsCd=110201&flSeq=154464361&gubun=',
+  mapping_basis:family, verified_on:'2026-10-01',
+}));
+export const DEFAULT_RULES = [...CATALOG.rules, ...compoundRules];
 export const LEGAL_SOURCES = CATALOG.sources;
 export const todayKorea = () => new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 
@@ -87,7 +101,7 @@ function rulesByCas(rules, on) {
 export function assess(components, rules, { on = todayKorea(), physicalState = '', ph = null } = {}) {
   const index = rulesByCas(rules, on), decisions = [];
   for (const component of components || []) {
-    if (undisclosedComponent(component)) continue;
+    if (excludedComponent(component)) continue;
     const cas = String(component.cas || '').trim(), range = contentRange(component.content);
     for (const criterion of index.get(cas) || []) {
       let status = compare(range, Number(criterion.threshold));
@@ -99,7 +113,7 @@ export function assess(components, rules, { on = todayKorea(), physicalState = '
   decisions.filter(d => d.status === 'applicable').forEach(d => {
     if (!regulations[d.group].includes(d.label)) regulations[d.group].push(d.label);
   });
-  return { decisions, regulations, review: decisions.some(d => d.status === 'review') || (components || []).some(c => !undisclosedComponent(c) && (!c.name || !contentRange(c.content) || !validCas(c.cas))), undisclosed: (components || []).some(undisclosedComponent), physicalState };
+  return { decisions, regulations, review: decisions.some(d => d.status === 'review') || (components || []).some(c => !excludedComponent(c) && (!c.name || !contentRange(c.content) || !validCas(c.cas))), undisclosed: (components || []).some(undisclosedComponent), physicalState };
 }
 export function diffProduct(before, after) {
   const map = cs => new Map((cs || []).map(c => [String(c.cas || c.name).trim(), c]));
