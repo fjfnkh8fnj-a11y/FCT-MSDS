@@ -840,7 +840,7 @@
   }
   function componentAssessment(doc, component) {
     if (legalEngine) {
-      if (legalEngine.undisclosedComponent(component)) return { status: 'excluded', decisions: [], basis: '비공개 성분 · 법적규제 판정 제외' };
+      if (legalEngine.excludedComponent(component)) return { status: 'excluded', decisions: [], basis: legalEngine.undisclosedComponent(component) ? '비공개 성분 · 법적규제 판정 제외' : 'Additive · CAS 미부여 · 자동 법적규제 판정 제외' };
       const rules = legalEngine.activeRules(state.legalRules).filter(r => r.cas === String(component.cas || '').trim());
       if (rules.length) {
         const result = legalEngine.assess([component], rules, { ph: metadataFor(doc).regulations.ph });
@@ -932,7 +932,7 @@
   }
   function componentCriteriaHtml(component, doc = null) {
     const rows = componentCriteria(component, doc);
-    if (legalEngine.undisclosedComponent(component)) return "<b>비공개 성분 · 판정 제외</b>";
+    if (legalEngine.excludedComponent(component)) return "<b>"+(legalEngine.undisclosedComponent(component) ? "비공개 성분" : "Additive · CAS 미부여")+" · 판정 제외</b>";
     if (!component.cas && !component.content && !rows.length) return "";
     return '<b>성분별 법적 적용기준</b>' + (rows.length
       ? rows.map((row) =>
@@ -1819,8 +1819,8 @@
       error.code = "SECURED_PDF";
       throw error;
     }
-    const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.8");
-    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.8");
+    const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.9");
+    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.9");
     pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
     let pdf;
     try {
@@ -2488,7 +2488,7 @@
       if (!response.ok) throw new Error("PDF 파일을 불러오지 못했습니다.");
       const bytes = new Uint8Array(await response.arrayBuffer());
       if (run !== pdfRenderRun) return;
-      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.8");
+      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.9");
       pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
       activePdfTask = pdfjs.getDocument({ data: bytes });
       const pdf = await activePdfTask.promise;
@@ -2639,7 +2639,7 @@
     }
     downloadBlob(
       await zip.generateAsync({ type: "blob" }),
-      "FCT_MSDS_전체PDF_VER13_rev.8.zip",
+      "FCT_MSDS_전체PDF_VER13_rev.9.zip",
     );
   }
 
@@ -3048,7 +3048,7 @@
       );
     downloadBlob(
       await workbookBlob(rows),
-      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER13_rev.8.xlsx",
+      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER13_rev.9.xlsx",
     );
   }
   function parseCsv(text) {
@@ -4050,7 +4050,7 @@
   $("homeLogo").addEventListener("click", goHome);
   async function init() {
     try {
-      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.8');
+      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.9');
       refreshLegalRules();
     } catch (error) { console.error('법적기준 모듈 로드 실패', error); }
     state.draftUses = [emptyUse()];
