@@ -46,6 +46,7 @@
     legalRules: [],
     legalDraft: null,
     legalProductChanges: [],
+    pendingEditDocumentId: "",
   };
   let legalEngine = null;
   let layoutLocked = Boolean(localStorage.getItem("fct-layout-mode"));
@@ -1082,12 +1083,14 @@
     if (q) rows = rows.filter((r) => norm([r.name, r.cas, ...[...r.products.values()].map((d) => d.material_name)].join(" ")).includes(q));
     if (status) rows = rows.filter((r) => r.status === status);
     if (level) rows = rows.filter((r) => r.assessments.some((a) => (a.decisions || []).some((d) => d.status === "applicable" && d.group === level && (!detail || d.label.includes(detail) || detail.includes(d.label)))));
-    const statusLabel = { applicable: "해당", "not-applicable": "비해당", review: "확인 필요", unmatched: "CAS 규칙 없음", excluded: "판정 제외" };
+    const statusLabel = { applicable: "해당", "not-applicable": "비해당", review: "확인 필요", unmatched: "법령 기준 미연결", excluded: "판정 제외" };
     const pendingIds = new Set(pendingRegulationDocuments().map(d => d.id));
-    target.innerHTML = rows.length ? '<div class="ingredient-head"><b>성분별 규제현황</b><span>'+rows.length+'개 성분</span></div><div class="ingredient-list">' + rows.map((r) => {
-      const docs = [...r.products.values()], firstReview = docs.find((d) => pendingIds.has(d.id));
-      return '<article class="ingredient-row"><div class="ingredient-main"><b>'+esc(r.name)+'</b><span>CAS No. '+esc(r.cas)+' · 함량 '+esc([...r.contents].join(", "))+'</span></div><span class="decision '+r.status+'">'+statusLabel[r.status]+'</span><div class="ingredient-products"><b>'+docs.length+'개 제품</b><span>'+docs.map((d)=>esc(d.material_name)).join(", ")+'</span><small>사용처 '+r.locations.size+'곳</small></div><div class="ingredient-basis">'+esc(r.assessments.map((a)=>a.basis).filter(Boolean)[0] || "판정 근거 확인 필요")+'</div>'+(state.admin && firstReview?'<button class="btn btn-blue btn-small" data-review-doc="'+esc(firstReview.id)+'">확인·수정</button>':'')+'</article>';
-    }).join("") + '</div>' : '<div class="reg-empty">조건에 맞는 성분이 없습니다.</div>';
+    const inputReviewDocs = status === "review" ? pendingRegulationDocuments().filter(d => !q || norm(d.material_name).includes(q)) : [];
+    const inputReviewHtml = inputReviewDocs.length ? '<div class="ingredient-head"><b>입력정보 확인 필요</b><span>'+inputReviewDocs.length+'개 제품</span></div><div class="ingredient-list">'+inputReviewDocs.map(d=>'<article class="ingredient-row"><b>'+esc(d.material_name)+'</b><div>'+esc(legalEngine.requiredFields(d).join(', ') || '새 PDF 변경 확인 필요')+'</div><button class="btn btn-blue btn-small" data-review-doc="'+esc(d.id)+'">'+(state.admin?'확인·수정':'관리자 로그인 후 수정')+'</button></article>').join('')+'</div>' : '';
+    target.innerHTML = inputReviewHtml + (rows.length ? '<div class="ingredient-head"><b>성분별 규제현황</b><span>'+rows.length+'개 성분</span></div><div class="ingredient-list">' + rows.map((r) => {
+      const docs = [...r.products.values()];
+      return '<article class="ingredient-row"><div class="ingredient-main"><b>'+esc(r.name)+'</b><span>CAS No. '+esc(r.cas)+' · 함량 '+esc([...r.contents].join(", "))+'</span></div><span class="decision '+r.status+'">'+statusLabel[r.status]+'</span><div class="ingredient-products"><b>'+docs.length+'개 제품</b><span>'+docs.map((d)=>esc(d.material_name)).join(", ")+'</span><small>사용처 '+r.locations.size+'곳</small></div><div class="ingredient-basis">'+esc(r.assessments.map((a)=>a.basis).filter(Boolean)[0] || "판정 근거 확인 필요")+'</div>'+docs.map(d=>'<button class="btn btn-blue btn-small" data-review-doc="'+esc(d.id)+'">'+esc(d.material_name)+' · '+(state.admin?'수정':'관리자 로그인 후 수정')+'</button>').join('')+'</article>';
+    }).join("") + '</div>' : inputReviewDocs.length ? '' : '<div class="reg-empty">조건에 맞는 성분이 없습니다.</div>');
   }
 
   function setLayoutMode(mode, persist = false) {
@@ -1163,6 +1166,7 @@
       $("loginForm").reset();
       applyAdminUi();
       toast("관리자 모드로 전환했습니다.");
+      if (state.pendingEditDocumentId) { const id=state.pendingEditDocumentId; state.pendingEditDocumentId=""; openEditDocument(id); }
     } catch (err) {
       state.token = "";
       state.admin = null;
@@ -1819,8 +1823,8 @@
       error.code = "SECURED_PDF";
       throw error;
     }
-    const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.9");
-    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.9");
+    const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.10");
+    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.10");
     pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
     let pdf;
     try {
@@ -2488,7 +2492,7 @@
       if (!response.ok) throw new Error("PDF 파일을 불러오지 못했습니다.");
       const bytes = new Uint8Array(await response.arrayBuffer());
       if (run !== pdfRenderRun) return;
-      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.9");
+      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.10");
       pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
       activePdfTask = pdfjs.getDocument({ data: bytes });
       const pdf = await activePdfTask.promise;
@@ -2639,7 +2643,7 @@
     }
     downloadBlob(
       await zip.generateAsync({ type: "blob" }),
-      "FCT_MSDS_전체PDF_VER13_rev.9.zip",
+      "FCT_MSDS_전체PDF_VER13_rev.10.zip",
     );
   }
 
@@ -3048,7 +3052,7 @@
       );
     downloadBlob(
       await workbookBlob(rows),
-      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER13_rev.9.xlsx",
+      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER13_rev.10.xlsx",
     );
   }
   function parseCsv(text) {
@@ -3723,7 +3727,9 @@
   document.addEventListener("click", async (e) => {
     const review = e.target.closest("[data-review-doc]");
     if (review) {
-      startRegulationReview(review.dataset.reviewDoc);
+      state.reviewQueue = [];
+      if (!state.admin) { state.pendingEditDocumentId=review.dataset.reviewDoc; openLogin(); }
+      else openEditDocument(review.dataset.reviewDoc);
       return;
     }
     const reg = e.target.closest("[data-reg-key]");
@@ -3978,6 +3984,8 @@
   $("dashboardReviewAlert").addEventListener("click", () => {
     switchView("regulations");
     $("regStatusFilter").value = "review";
+    state.regPath = [];
+    renderRegulatoryDashboard();
     renderIngredientDashboard();
   });
   $("pdfInput").addEventListener("change", (e) => addFiles(e.target.files));
@@ -4050,7 +4058,7 @@
   $("homeLogo").addEventListener("click", goHome);
   async function init() {
     try {
-      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.9');
+      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.10');
       refreshLegalRules();
     } catch (error) { console.error('법적기준 모듈 로드 실패', error); }
     state.draftUses = [emptyUse()];
