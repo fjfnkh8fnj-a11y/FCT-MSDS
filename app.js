@@ -1089,7 +1089,7 @@
     const inputReviewHtml = inputReviewDocs.length ? '<div class="ingredient-head"><b>입력정보 확인 필요</b><span>'+inputReviewDocs.length+'개 제품</span></div><div class="ingredient-list">'+inputReviewDocs.map(d=>'<article class="ingredient-row"><b>'+esc(d.material_name)+'</b><div>'+esc(legalEngine.requiredFields(d).join(', ') || '새 PDF 변경 확인 필요')+'</div><button class="btn btn-blue btn-small" data-review-doc="'+esc(d.id)+'">'+(state.admin?'확인·수정':'관리자 로그인 후 수정')+'</button></article>').join('')+'</div>' : '';
     target.innerHTML = inputReviewHtml + (rows.length ? '<div class="ingredient-head"><b>성분별 규제현황</b><span>'+rows.length+'개 성분</span></div><div class="ingredient-list">' + rows.map((r) => {
       const docs = [...r.products.values()];
-      return '<article class="ingredient-row"><div class="ingredient-main"><b>'+esc(r.name)+'</b><span>CAS No. '+esc(r.cas)+' · 함량 '+esc([...r.contents].join(", "))+'</span></div><span class="decision '+r.status+'">'+statusLabel[r.status]+'</span><div class="ingredient-products"><b>'+docs.length+'개 제품</b><span>'+docs.map((d)=>esc(d.material_name)).join(", ")+'</span><small>사용처 '+r.locations.size+'곳</small></div><div class="ingredient-basis">'+esc(r.assessments.map((a)=>a.basis).filter(Boolean)[0] || "판정 근거 확인 필요")+'</div>'+docs.map(d=>'<button class="btn btn-blue btn-small" data-review-doc="'+esc(d.id)+'">'+esc(d.material_name)+' · '+(state.admin?'수정':'관리자 로그인 후 수정')+'</button>').join('')+'</article>';
+      return '<article class="ingredient-row"><div class="ingredient-main"><b>'+esc(r.name)+'</b><span>CAS No. '+esc(r.cas)+' · 함량 '+esc([...r.contents].join(", "))+'</span></div><span class="decision '+r.status+'">'+statusLabel[r.status]+'</span><div class="ingredient-products"><b>'+docs.length+'개 제품</b><span>'+docs.map((d)=>esc(d.material_name)).join(", ")+'</span><small>사용처 '+r.locations.size+'곳</small></div><div class="ingredient-basis">'+esc(r.assessments.map((a)=>a.basis).filter(Boolean)[0] || "판정 근거 확인 필요")+'</div><div class="ingredient-actions">'+docs.map(d=>'<button class="btn btn-blue btn-small" data-review-doc="'+esc(d.id)+'">'+esc(d.material_name)+' · '+(state.admin?'수정':'관리자 로그인 후 수정')+'</button>').join('')+'</div></article>';
     }).join("") + '</div>' : inputReviewDocs.length ? '' : '<div class="reg-empty">조건에 맞는 성분이 없습니다.</div>');
   }
 
@@ -1823,8 +1823,8 @@
       error.code = "SECURED_PDF";
       throw error;
     }
-    const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.11");
-    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.11");
+    const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.12");
+    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.12");
     pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
     let pdf;
     try {
@@ -2492,7 +2492,7 @@
       if (!response.ok) throw new Error("PDF 파일을 불러오지 못했습니다.");
       const bytes = new Uint8Array(await response.arrayBuffer());
       if (run !== pdfRenderRun) return;
-      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.11");
+      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.12");
       pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
       activePdfTask = pdfjs.getDocument({ data: bytes });
       const pdf = await activePdfTask.promise;
@@ -2643,7 +2643,7 @@
     }
     downloadBlob(
       await zip.generateAsync({ type: "blob" }),
-      "FCT_MSDS_전체PDF_VER13_rev.11.zip",
+      "FCT_MSDS_전체PDF_VER13_rev.12.zip",
     );
   }
 
@@ -3052,7 +3052,7 @@
       );
     downloadBlob(
       await workbookBlob(rows),
-      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER13_rev.11.xlsx",
+      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER13_rev.12.xlsx",
     );
   }
   function parseCsv(text) {
@@ -4058,7 +4058,7 @@
   $("homeLogo").addEventListener("click", goHome);
   async function init() {
     try {
-      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.11');
+      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.12');
       refreshLegalRules();
     } catch (error) { console.error('법적기준 모듈 로드 실패', error); }
     state.draftUses = [emptyUse()];
