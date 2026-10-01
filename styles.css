@@ -411,7 +411,7 @@ a:focus-visible {
 .ingredient-list { border: 1px solid #d6dfec; }
 .ingredient-row {
   display: grid;
-  grid-template-columns: minmax(190px, 1.1fr) 90px minmax(220px, 1.2fr) minmax(260px, 1.5fr) auto;
+  grid-template-columns: minmax(0, 1.1fr) 90px minmax(0, 1.2fr) minmax(0, 1.5fr);
   gap: 14px;
   align-items: center;
   padding: 14px;
@@ -1957,3 +1957,7 @@ textarea {
   .edit-dialog footer .btn { min-height: 46px; flex: 1; }
 }
 .manual-legal-controls{display:none!important}
+
+.ingredient-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
+.ingredient-actions button { white-space: normal; text-align: left; }
+.ingredient-row > * { min-width: 0; overflow-wrap: anywhere; }
