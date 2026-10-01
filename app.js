@@ -851,8 +851,8 @@
         return { status, decisions, basis: decisions.map(d =>
           `${d.label} ${d.threshold}% 이상 · 현재 ${component.content || '함량 판독불가'} → ${d.status === 'applicable' ? '해당' : d.status === 'not-applicable' ? '비해당' : '함량 확인 필요'} (${d.source})`).join(' · ') };
       }
-      return { status: !component.name || !component.cas || !component.content ? 'review' : 'unmatched', decisions: [], basis: !component.name || !component.cas || !component.content ?
-        '성분명·CAS No.·함량 중 판독불가 데이터 입력 필요' : '연결된 현행 CAS 규칙 없음 · 비해당으로 확정하지 않음' };
+      return { status: !component.name || !/^\d{2,7}-\d{2}-\d$/.test(String(component.cas || '').trim()) || !component.content ? 'review' : 'unmatched', decisions: [], basis: !component.name || !/^\d{2,7}-\d{2}-\d$/.test(String(component.cas || '').trim()) || !component.content ?
+        '성분명·CAS No.·함량 중 판독불가 데이터 입력 필요' : '이 CAS에 연결된 법령 판정 기준이 없습니다 · 규제 여부 미확정' };
     }
     const explicit = component.regulations || {},
       rules = LEGAL_RULES[String(component.cas || "").trim()] || [],
@@ -939,14 +939,14 @@
       ? rows.map((row) =>
           '<span class="criterion '+esc(row.group)+'"><strong>'+esc(row.label)+'</strong><span>기준 '+esc(row.condition)+'</span><span>현재 '+esc(row.current)+'</span><em class="'+esc(row.status)+'">'+criterionStatusLabel(row.status)+'</em></span>',
         ).join("")
-      : '<span class="criteria-empty">연결된 현행 CAS 규칙 없음 · 비해당으로 확정하지 않음</span>');
+      : '<span class="criteria-empty">이 CAS에 연결된 법령 판정 기준이 없습니다 · 규제 여부 미확정</span>');
   }
   function ingredientRows(items = state.documents.filter((d) => d.locations?.length)) {
     const map = new Map();
     items.forEach((doc) => {
       const components = metadataFor(doc).components || [];
       components.forEach((component) => {
-        const key = legalEngine.undisclosedComponent(component) ? `secret:${doc.id}:${components.indexOf(component)}` : component.cas ? `cas:${norm(component.cas)}` : `name:${norm(component.name)}`;
+        const key = legalEngine.undisclosedComponent(component) ? `secret:${doc.id}:${components.indexOf(component)}` : /^\d{2,7}-\d{2}-\d$/.test(String(component.cas || "").trim()) ? `cas:${norm(component.cas)}` : `name:${norm(component.name)}`;
         if (!map.has(key)) map.set(key, { key, name: component.name || "성분명 확인 필요", cas: component.cas || "-", products: new Map(), contents: new Set(), locations: new Map(), assessments: [] });
         const row = map.get(key), assessment = componentAssessment(doc, component);
         row.products.set(doc.id, doc);
@@ -1823,8 +1823,8 @@
       error.code = "SECURED_PDF";
       throw error;
     }
-    const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.10");
-    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.10");
+    const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.11");
+    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.11");
     pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
     let pdf;
     try {
@@ -2492,7 +2492,7 @@
       if (!response.ok) throw new Error("PDF 파일을 불러오지 못했습니다.");
       const bytes = new Uint8Array(await response.arrayBuffer());
       if (run !== pdfRenderRun) return;
-      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.10");
+      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.11");
       pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
       activePdfTask = pdfjs.getDocument({ data: bytes });
       const pdf = await activePdfTask.promise;
@@ -2643,7 +2643,7 @@
     }
     downloadBlob(
       await zip.generateAsync({ type: "blob" }),
-      "FCT_MSDS_전체PDF_VER13_rev.10.zip",
+      "FCT_MSDS_전체PDF_VER13_rev.11.zip",
     );
   }
 
@@ -3052,7 +3052,7 @@
       );
     downloadBlob(
       await workbookBlob(rows),
-      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER13_rev.10.xlsx",
+      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER13_rev.11.xlsx",
     );
   }
   function parseCsv(text) {
@@ -4058,7 +4058,7 @@
   $("homeLogo").addEventListener("click", goHome);
   async function init() {
     try {
-      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.10');
+      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.11');
       refreshLegalRules();
     } catch (error) { console.error('법적기준 모듈 로드 실패', error); }
     state.draftUses = [emptyUse()];
