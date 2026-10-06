@@ -1970,3 +1970,8 @@ textarea {
 .ingredient-product .btn { justify-self: start; white-space: normal; }
 .btn-review { background: #b96800; color: white; border: 1px solid #b96800; }
 .decision.excluded,.decision.unmatched { background: #edf1f6; color: #526074; }
+
+.ingredient-product .btn-outline { color: #34445e; background: #fff; border-color: #aab6c7; }
+.reg-filters input { min-width: 120px; width: 0; flex: 1 1 0; }
+.reg-filters select { width: auto; flex: 0 0 200px; }
+@media (max-width: 600px) { .reg-filters input,.reg-filters select { width: 100%; min-width: 0; } .ingredient-row { grid-template-columns: minmax(0,1fr) 100px; } }

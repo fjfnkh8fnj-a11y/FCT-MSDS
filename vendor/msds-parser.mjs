@@ -1,4 +1,4 @@
-import { normalizeComponents, undisclosedComponent, validCas } from './material-values.mjs?v=VER13_rev.13';
+import { normalizeComponents, undisclosedComponent, validCas } from './material-values.mjs?v=VER13_rev.14';
 const CAS_RE = /\b\d{2,7}\s*-\s*\d{2}\s*-\s*\d\b/;
 const PRODUCT_LABEL_RE = /(?:^|\s)(?:가\s*[.)]?\s*)?(?:제품명|제품의\s*명칭|화학품\s*명칭|상품명|product\s*(?:name|identifier))\s*[:：]?/i;
 const CHEMICAL_HEADER_RE = /화학\s*물질\s*명|화학명(?:\s*또는\s*일반명)?|물질명|구성\s*성분(?:의\s*명칭)?|성분명|chemical\s*name|ingredient/i;

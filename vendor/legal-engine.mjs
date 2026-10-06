@@ -1,6 +1,6 @@
 import { CATALOG } from './legal-catalog.mjs';
-import { undisclosedComponent, excludedComponent, validCas } from './material-values.mjs?v=VER13_rev.13';
-export { excludedComponent, additiveWithoutCas, undisclosedComponent, normalizeComponents, requiredFields, valuesOf, effectiveDocument, confirmValues } from './material-values.mjs?v=VER13_rev.13';
+import { undisclosedComponent, excludedComponent, validCas } from './material-values.mjs?v=VER13_rev.14';
+export { excludedComponent, additiveWithoutCas, undisclosedComponent, normalizeComponents, requiredFields, valuesOf, effectiveDocument, confirmValues } from './material-values.mjs?v=VER13_rev.14';
 // 법령 판정은 시행일과 구성성분의 CAS/함량을 기준으로 수행한다.
 // 출처가 확인되지 않는 조항은 자동 확정하지 않는다.
 export const CHECKED_ON = '2026-09-29';
