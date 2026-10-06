@@ -3,10 +3,19 @@ import assert from 'node:assert/strict';
 import {normalizeComponents,requiredFields,confirmValues,effectiveDocument,assess,contentRange,compare,DEFAULT_RULES} from '../vendor/legal-engine.mjs';
 test('separate secret rows survive normalization and all regulation engines exclude them',()=>{
  const rows=normalizeComponents([{name:'secret A',cas:'Trade Secret',content:'3~11'}, {name:'secret B',cas:'proprietary',content:'1~2'}, {name:'methanol',cas:'67-56-1',content:'90'}]);
- assert.equal(rows.length,3); assert.deepEqual(rows.slice(0,2).map(c=>c.cas),['-','-']);
+ assert.equal(rows.length,3); assert.deepEqual(rows.slice(0,2).map(c=>c.cas),['Trade Secret','proprietary']);
+ assert.deepEqual(rows.slice(0,2).map(c=>c.content),['3~11','1~2']);
  const outcome=assess(rows,DEFAULT_RULES);
  assert(outcome.decisions.length>0); assert(outcome.decisions.every(d=>d.cas==='67-56-1'));
  assert.equal(assess([{name:'proprietary',cas:'67-56-1',content:'100'}],DEFAULT_RULES).decisions.length,0);
+});
+test('only blanked fields restore from source while entered fields and source row order survive',()=>{
+ const raw={name:'Alkyl ketone',cas:'영업비밀',content:'1~7'};
+ const rows=normalizeComponents([{name:'-',cas:'-',content:'-',undisclosed:true,source_values:raw},{name:'관리자 입력명',cas:'-',content:'2~8',undisclosed:true,source_values:raw}]);
+ assert.deepEqual([rows[0].name,rows[0].cas,rows[0].content],Object.values(raw));
+ assert.equal(rows[1].name,'관리자 입력명'); assert.equal(rows[1].content,'2~8');
+ assert.deepEqual(normalizeComponents(rows),rows);
+ assert.equal(assess(rows,DEFAULT_RULES).decisions.length,0);
 });
 test('confirmed fields survive load and new extraction without mutating the snapshot',()=>{
  const original={material_name:'verified',components:[{name:'water',cas:'7732-18-5',content:'100'}],regulations:{physical_state:'액체'}};

@@ -4,11 +4,18 @@ export const undisclosedComponent = c => Boolean(c?.undisclosed) || secret.test(
 export const additiveWithoutCas = c => /^additives?$/i.test(String(c?.name || '').trim()) && !validCas(c?.cas);
 export const excludedComponent = c => undisclosedComponent(c) || additiveWithoutCas(c);
 export function normalizeComponents(rows = []) {
-  return rows.map(c => undisclosedComponent(c) ? {
-    ...c, undisclosed: true,
-    source_values: c.source_values || {name:c.name || '',cas:c.cas || '',content:c.content || ''},
-    name:'-', cas:'-', content:'-', legal_status:'excluded', regulations:{},
-  } : additiveWithoutCas(c) ? {...c, cas:'-', cas_not_assigned:true, legal_status:'excluded', exclusion_reason:'첨가제 총칭 · 원문 CAS 미부여', regulations:{}} : {...c});
+  return rows.map(c => {
+    const source=c.source_values || {};
+    const restored={...c};
+    for(const field of ['name','cas','content']) {
+      if ((!String(c[field] || '').trim() || c[field]==='-') && String(source[field] || '').trim()) restored[field]=source[field];
+    }
+    if (undisclosedComponent(restored)) return {...restored, undisclosed:true,
+      source_values:c.source_values || {name:c.name || '',cas:c.cas || '',content:c.content || ''},
+      name:restored.name || '-',cas:restored.cas || '-',content:restored.content || '-',legal_status:'excluded',regulations:{}};
+    if(additiveWithoutCas(restored)) return {...restored,cas:'-',cas_not_assigned:true,legal_status:'excluded',exclusion_reason:'첨가제 총칭 · 원문 CAS 미부여',regulations:{}};
+    return restored;
+  });
 }
 export function validCas(value) {
   const s=String(value || '').replace(/\s/g,'');
@@ -43,4 +50,3 @@ export function confirmValues(doc) {
     auto_values:doc.regulations?.auto_values || current,admin_values:current,
     admin_confirmed_at:new Date().toISOString(),pending_revision:null,missing_fields:requiredFields(doc)}};
 }
-

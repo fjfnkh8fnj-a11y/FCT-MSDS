@@ -1,4 +1,4 @@
-import { normalizeComponents, undisclosedComponent, validCas } from './material-values.mjs';
+import { normalizeComponents, undisclosedComponent, validCas } from './material-values.mjs?v=VER13_rev.13';
 const CAS_RE = /\b\d{2,7}\s*-\s*\d{2}\s*-\s*\d\b/;
 const PRODUCT_LABEL_RE = /(?:^|\s)(?:가\s*[.)]?\s*)?(?:제품명|제품의\s*명칭|화학품\s*명칭|상품명|product\s*(?:name|identifier))\s*[:：]?/i;
 const CHEMICAL_HEADER_RE = /화학\s*물질\s*명|화학명(?:\s*또는\s*일반명)?|물질명|구성\s*성분(?:의\s*명칭)?|성분명|chemical\s*name|ingredient/i;
@@ -236,14 +236,13 @@ function normalizeAmount(value) {
   return clean(value).replace(/\s*(?:wt\.?\s*)?%$/i, "%").replace(/\s/g, "");
 }
 
-function cleanComponentName(value, cas) {
-  if (CANONICAL_NAMES_BY_CAS[cas]) return CANONICAL_NAMES_BY_CAS[cas];
+export function cleanComponentName(value, cas) {
   const name = clean(value)
     .replace(/\s+CAS\s*번호란이\s*빈\s*칸인\s*화학물질입니다\.?$/i, "")
     .replace(/^\d+\)\s*/, "")
     .trim();
-  if (/물질안전보건자료|제품\s*사양|MSDS\s*번호|문서\s*번호|페이지\s*Page|에\s*따르면|이\s*자료는|※\s*비고|기재\s*의무/i.test(name)) return "";
-  return name;
+  if (/물질안전보건자료|제품\s*사양|MSDS\s*번호|문서\s*번호|페이지\s*Page|에\s*따르면|이\s*자료는|※\s*비고|기재\s*의무/i.test(name)) return CANONICAL_NAMES_BY_CAS[cas] || "";
+  return name && name !== '-' ? name : CANONICAL_NAMES_BY_CAS[cas] || "";
 }
 
 export function rowsFromPositionedTable(page, layout) {

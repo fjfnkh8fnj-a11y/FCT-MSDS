@@ -1961,3 +1961,12 @@ textarea {
 .ingredient-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
 .ingredient-actions button { white-space: normal; text-align: left; }
 .ingredient-row > * { min-width: 0; overflow-wrap: anywhere; }
+
+.ingredient-product-list { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,280px),1fr)); gap: 10px; }
+.ingredient-product { display: grid; gap: 8px; align-content: start; padding: 12px; background: #f8fafc; border: 1px solid #dde3ed; border-radius: 8px; min-width: 0; }
+.ingredient-product.review { border: 2px solid #e5a028; background: #fff8e9; }
+.ingredient-product-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.ingredient-product p { margin: 0; color: #596579; font-size: .84rem; line-height: 1.5; overflow-wrap: anywhere; }
+.ingredient-product .btn { justify-self: start; white-space: normal; }
+.btn-review { background: #b96800; color: white; border: 1px solid #b96800; }
+.decision.excluded,.decision.unmatched { background: #edf1f6; color: #526074; }
