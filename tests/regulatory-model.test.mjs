@@ -51,7 +51,7 @@ test('CAS-less Additive and confidential rows are not merged across products',()
 });
 
 test('classification counts deduplicate products and CAS while retaining separate quantity groups',()=>{
- const rule={id:'q',cas:'67-56-1',group:'chemical',label:'인체급성유해성물질',threshold:1,effective_date:'2020-01-01',detail:'규정수량(톤) 급성 최하위 0.125/하위 5/상위 400'};
+ const rule={id:'q',cas:'67-56-1',group:'chemical',label:'인체급성유해성물질',threshold:1,effective_date:'2020-01-01',regulated_quantities:[{category:'급성',lowest_tons:'0.125',lower_tons:'5',upper_tons:'400'}]};
  const model=regulatoryModel([doc('A',[{...methanol,content:'3%'},{...methanol,content:'3%'}],['제4류 제1석유류(비수용성액체), 지정수량 200L']),doc('B',[{...methanol,content:'3%'}],['제4류 제1석유류(비수용성액체), 지정수량 200L'])],[rule]);
  const groups=classificationGroups(model),chem=groups.find(g=>g.kind==='chemical'),danger=groups.find(g=>g.kind==='dangerous');
  assert.equal(chem.ingredients.length,1);assert.equal(chem.products.length,2);assert(chem.title.includes('최하위 0.125t / 하위 5t / 상위 400t'));assert.equal(danger.products.length,2);

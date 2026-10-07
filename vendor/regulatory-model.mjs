@@ -1,4 +1,4 @@
-import {assess, requiredFields, excludedComponent} from './legal-engine.mjs?v=VER13_rev.19';
+import {assess, requiredFields, excludedComponent} from './legal-engine.mjs?v=VER13_rev.20';
 export function regulatoryModel(documents, rules, metadata = d => ({components:d.components || [],regulations:d.regulations || {}})) {
   const ingredients=new Map();
   const products=documents.map(doc=>{
@@ -34,9 +34,14 @@ export function classificationGroups(model) {
   };
   for(const product of model.products)for(const title of product.groups.dangerous)add('dangerous:'+title,title,'dangerous',product);
   for(const ingredient of model.ingredients)for(const entry of ingredient.entries)for(const decision of entry.applied.filter(d=>d.group==='chemical')) {
+    if(decision.label!=='사고대비물질'&&entry.applied.some(d=>d.label==='사고대비물질'))continue;
+    const quantities=decision.regulated_quantities || [];
     const m=String(decision.detail || '').match(/(급성|만성|생태|사고대비)\s*최하위\s*([\d.,]+)\s*\/\s*하위\s*([\d.,]+)\s*\/\s*상위\s*([\d.,]+)/);
-    const title=decision.label+' · '+(m?'최하위 '+m[2]+'t / 하위 '+m[3]+'t / 상위 '+m[4]+'t':'규정수량 확인 필요');
-    add('chemical:'+title,title,'chemical',model.products.find(p=>p.doc.id===entry.doc.id),ingredient);
+    const values=quantities.length?quantities:m?[{lowest_tons:m[2],lower_tons:m[3],upper_tons:m[4]}]:[null];
+    for(const quantity of values){
+      const title=decision.label+' · '+(quantity?(quantity.physical_state?quantity.physical_state+' · ':'')+'최하위 '+quantity.lowest_tons+'t / 하위 '+quantity.lower_tons+'t / 상위 '+quantity.upper_tons+'t':'규정수량 확인 필요');
+      add('chemical:'+title,title,'chemical',model.products.find(p=>p.doc.id===entry.doc.id),ingredient);
+    }
   }
   return [...groups.values()].map(g=>({...g,products:[...g.products.values()],ingredients:[...g.ingredients.values()]})).sort((a,b)=>a.kind.localeCompare(b.kind)||a.title.localeCompare(b.title,'ko',{numeric:true}));
 }

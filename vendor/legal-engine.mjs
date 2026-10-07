@@ -1,6 +1,6 @@
 import { CATALOG } from './legal-catalog.mjs';
-import { undisclosedComponent, excludedComponent, validCas } from './material-values.mjs?v=VER13_rev.19';
-export { excludedComponent, additiveWithoutCas, undisclosedComponent, normalizeComponents, requiredFields, valuesOf, effectiveDocument, confirmValues } from './material-values.mjs?v=VER13_rev.19';
+import { undisclosedComponent, excludedComponent, validCas } from './material-values.mjs?v=VER13_rev.20';
+export { excludedComponent, additiveWithoutCas, undisclosedComponent, normalizeComponents, requiredFields, valuesOf, effectiveDocument, confirmValues } from './material-values.mjs?v=VER13_rev.20';
 export const REGULATION_LABELS={chemical:['인체급성유해성물질','인체만성유해성물질','생태유해성물질','사고대비물질'],osh:['관리대상 유해물질','특별관리물질','작업환경측정 대상','특수건강진단 대상']};
 // 법령 판정은 시행일과 구성성분의 CAS/함량을 기준으로 수행한다.
 // 출처가 확인되지 않는 조항은 자동 확정하지 않는다.
