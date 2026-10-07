@@ -1,6 +1,7 @@
 import { CATALOG } from './legal-catalog.mjs';
-import { undisclosedComponent, excludedComponent, validCas } from './material-values.mjs?v=VER13_rev.14';
-export { excludedComponent, additiveWithoutCas, undisclosedComponent, normalizeComponents, requiredFields, valuesOf, effectiveDocument, confirmValues } from './material-values.mjs?v=VER13_rev.14';
+import { undisclosedComponent, excludedComponent, validCas } from './material-values.mjs?v=VER13_rev.16';
+export { excludedComponent, additiveWithoutCas, undisclosedComponent, normalizeComponents, requiredFields, valuesOf, effectiveDocument, confirmValues } from './material-values.mjs?v=VER13_rev.16';
+export const REGULATION_LABELS={chemical:['인체급성유해성물질','인체만성유해성물질','생태유해성물질','사고대비물질'],osh:['관리대상 유해물질','특별관리물질','작업환경측정 대상','특수건강진단 대상']};
 // 법령 판정은 시행일과 구성성분의 CAS/함량을 기준으로 수행한다.
 // 출처가 확인되지 않는 조항은 자동 확정하지 않는다.
 export const CHECKED_ON = '2026-09-29';
@@ -99,21 +100,27 @@ function rulesByCas(rules, on) {
   return index;
 }
 export function assess(components, rules, { on = todayKorea(), physicalState = '', ph = null } = {}) {
-  const index = rulesByCas(rules, on), decisions = [];
-  for (const component of components || []) {
-    if (excludedComponent(component)) continue;
-    const cas = String(component.cas || '').trim(), range = contentRange(component.content);
-    for (const criterion of index.get(cas) || []) {
-      let status = compare(range, Number(criterion.threshold));
-      if (criterion.detail?.includes('pH 2.0') && status === 'applicable' && !(ph !== null && Number(ph) <= 2)) status = 'review';
-      decisions.push({ ...criterion, status, content: component.content || '', component_name: component.name || '' });
+  const index = rulesByCas(rules, on), decisions = [], validations=[];
+  for (const [componentIndex,component] of (components || []).entries()) {
+    const range=contentRange(component.content), applicableRules=excludedComponent(component)?[]:index.get(String(component.cas || '').trim()) || [];
+    const current=applicableRules.map(criterion=>{
+      let status=compare(range,Number(criterion.threshold));
+      if(status==='review' && range)status='applicable';
+      if(criterion.detail?.includes('pH 2.0') && status==='applicable' && !(ph!==null && Number(ph)<=2))status='review';
+      return {...criterion,status,componentIndex,content:component.content || '',component_name:component.name || ''};
+    });
+    decisions.push(...current);
+    for(const [label,selected] of Object.entries(component.regulation_selections || {})) {
+      if(typeof selected!=='boolean' || !Object.values(REGULATION_LABELS).flat().includes(label))continue;
+      const criterion=current.find(d=>d.label===label);
+      if(!criterion) {if(selected)validations.push({componentIndex,label,unresolved:true,message:'선택한 규제 항목의 법령 근거 확인 필요'});continue;}
+      if(criterion.status==='review')continue;
+      if(selected!==(criterion.status==='applicable'))validations.push({componentIndex,label,unresolved:false,message:criterion.status==='applicable'?'선택한 해당없음과 다릅니다. 성분·함량 기준상 해당입니다.':'선택한 해당과 다릅니다. 성분·함량 기준상 해당없음입니다.'});
     }
   }
-  const regulations = { chemical: [], osh: [], dangerous: [] };
-  decisions.filter(d => d.status === 'applicable').forEach(d => {
-    if (!regulations[d.group].includes(d.label)) regulations[d.group].push(d.label);
-  });
-  return { decisions, regulations, review: decisions.some(d => d.status === 'review') || (components || []).some(c => !excludedComponent(c) && (!c.name || !contentRange(c.content) || !validCas(c.cas))), undisclosed: (components || []).some(undisclosedComponent), physicalState };
+  const regulations={chemical:[],osh:[],dangerous:[]};
+  decisions.filter(d=>d.status==='applicable').forEach(d=>{if(!regulations[d.group].includes(d.label))regulations[d.group].push(d.label);});
+  return {decisions,regulations,validations,review:validations.some(v=>v.unresolved)||decisions.some(d=>d.status==='review')||(components || []).some(c=>!excludedComponent(c)&&(!c.name||!contentRange(c.content)||!validCas(c.cas))),undisclosed:(components || []).some(undisclosedComponent),physicalState};
 }
 export function diffProduct(before, after) {
   const map = cs => new Map((cs || []).map(c => [String(c.cas || c.name).trim(), c]));
