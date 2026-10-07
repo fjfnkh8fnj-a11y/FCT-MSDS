@@ -1820,9 +1820,10 @@
       error.code = "SECURED_PDF";
       throw error;
     }
-    const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.23");
-    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.23");
-    pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
+    await import("./vendor/pdf-compat.mjs?v=VER13_rev.27");
+      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.27");
+    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.27");
+    pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.compat.mjs?v=VER13_rev.27";
     let pdf;
     try {
       pdf = await pdfjs.getDocument({ data: bytes }).promise;
@@ -2465,6 +2466,8 @@
     $("pdfFrame").src = "about:blank";
     $("pdfFrame").classList.remove("hidden");
     $("pdfCanvasViewer").classList.add("hidden");
+    document.querySelectorAll(".pdf-page-controls").forEach(el=>el.remove());
+    $("pdfPages").querySelectorAll("canvas").forEach(c=>{c.width=1;c.height=1;});
     $("pdfPages").replaceChildren();
     $("pdfLoading").classList.remove("hidden", "error");
     $("pdfLoading").textContent = "PDF를 휴대폰 화면에 맞추는 중입니다.";
@@ -2491,8 +2494,9 @@
       if (!response.ok) throw new Error("PDF 파일을 불러오지 못했습니다.");
       const bytes = new Uint8Array(await response.arrayBuffer());
       if (run !== pdfRenderRun) return;
-      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.23");
-      pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
+      await import("./vendor/pdf-compat.mjs?v=VER13_rev.27");
+      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.27");
+      pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.compat.mjs?v=VER13_rev.27";
       activePdfTask = pdfjs.getDocument({ data: bytes });
       const pdf = await activePdfTask.promise;
       if (run !== pdfRenderRun) {
@@ -2500,31 +2504,39 @@
         return;
       }
       activePdfDocument = pdf;
-      loading.textContent = `총 ${pdf.numPages}쪽을 화면 너비에 맞추는 중입니다.`;
-      const cssWidth = Math.max(260, Math.floor(viewer.clientWidth - 16));
-      const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.65);
-      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-        if (run !== pdfRenderRun) return;
-        const page = await pdf.getPage(pageNumber);
-        const base = page.getViewport({ scale: 1 });
-        const cssScale = cssWidth / base.width;
-        const viewport = page.getViewport({ scale: cssScale * pixelRatio });
-        const sheet = document.createElement("section");
-        sheet.className = "pdf-sheet";
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.ceil(viewport.width);
-        canvas.height = Math.ceil(viewport.height);
-        canvas.style.width = cssWidth + "px";
-        canvas.style.height = Math.round(base.height * cssScale) + "px";
-        canvas.setAttribute("aria-label", `PDF ${pageNumber}쪽`);
-        const pageLabel = document.createElement("small");
-        pageLabel.textContent = `${pageNumber} / ${pdf.numPages}`;
-        sheet.append(canvas, pageLabel);
-        pages.append(sheet);
-        await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
-        page.cleanup();
+      const controls=document.createElement('nav');
+      controls.className='pdf-page-controls';controls.setAttribute('aria-label','PDF 페이지 이동');
+      const prev=document.createElement('button'),next=document.createElement('button'),label=document.createElement('span');
+      prev.type=next.type='button';prev.textContent='이전 페이지';next.textContent='다음 페이지';
+      label.setAttribute('role','status');controls.append(prev,label,next);viewer.insertBefore(controls,pages);
+      let current=1,busy=false;
+      async function showPage(number){
+        if(busy || run!==pdfRenderRun)return;
+        busy=true;prev.disabled=next.disabled=true;loading.classList.remove('hidden','error');loading.textContent=`${number} / ${pdf.numPages}쪽 불러오는 중…`;
+        try{
+          // Release the previous canvas before allocating the next one on iOS.
+          pages.querySelectorAll('canvas').forEach(c=>{c.width=1;c.height=1;});pages.replaceChildren();
+          const page=await pdf.getPage(number);if(run!==pdfRenderRun)return;
+          const base=page.getViewport({scale:1});
+          const cssWidth=Math.max(200,Math.floor(viewer.clientWidth-16));
+          const cssScale=cssWidth/base.width;
+          const pixelRatio=Math.min(window.devicePixelRatio||1,1.5,Math.sqrt(2000000/(base.width*base.height*cssScale*cssScale)));
+          const viewport=page.getViewport({scale:cssScale*pixelRatio});
+          const sheet=document.createElement('section');sheet.className='pdf-sheet';
+          const canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+          canvas.style.width=cssWidth+'px';canvas.style.height=Math.round(base.height*cssScale)+'px';canvas.setAttribute('aria-label',`PDF ${number}쪽`);
+          sheet.append(canvas);pages.append(sheet);
+          const context=canvas.getContext('2d');if(!context)throw new Error('PDF 화면 메모리 부족');
+          await page.render({canvasContext:context,viewport}).promise;page.cleanup();
+          if(run!==pdfRenderRun)return;
+          current=number;label.textContent=`${current} / ${pdf.numPages}쪽`;loading.classList.add('hidden');
+          document.querySelector('.pdf-stage').scrollTop=0;
+        }catch(error){
+          if(run===pdfRenderRun){loading.classList.add('error');loading.textContent='이 페이지를 불러오지 못했습니다. 다시 시도하거나 전체화면으로 열어 주세요.';}
+        }finally{busy=false;prev.disabled=current<=1;next.disabled=current>=pdf.numPages;}
       }
-      if (run === pdfRenderRun) loading.classList.add("hidden");
+      prev.addEventListener('click',()=>showPage(current-1));next.addEventListener('click',()=>showPage(current+1));
+      await showPage(1);
     } catch (error) {
       if (run !== pdfRenderRun) return;
       loading.classList.add("error");
@@ -2642,7 +2654,7 @@
     }
     downloadBlob(
       await zip.generateAsync({ type: "blob" }),
-      "FCT_MSDS_전체PDF_VER13_rev.23.zip",
+      "FCT_MSDS_전체PDF_VER13_rev.27.zip",
     );
   }
 
@@ -2957,12 +2969,12 @@
     if(!regulatoryModule || !state.documents.length){toast('자료를 불러온 후 다시 다운로드해 주세요.');return;}
     button.disabled=true;button.textContent='엑셀 생성 중…';
     try{
-      const {integratedRows,integratedWorkbook}=await import('./vendor/regulatory-export.mjs?v=VER13_rev.23');
+      const {integratedRows,integratedWorkbook}=await import('./vendor/regulatory-export.mjs?v=VER13_rev.27');
       const rows=integratedRows(regulationModel(),{location:(loc,doc)=>loc&&equipmentPath(loc.equipment_id) || {factory_name:factory(loc?.factory_id || doc.factory_id)?.name || ''},pdfUrl:doc=>hasPdf(doc)?publicFileUrl(doc):'',fileName:shownFileName});
       const response=await fetch('./vendor/regulatory-export-template_rev.21.xlsx');
       if(!response.ok)throw new Error('통합 엑셀 서식을 불러오지 못했습니다.');
       const blob=await integratedWorkbook(JSZip,await response.arrayBuffer(),rows);
-      downloadBlob(blob,'FCT_성분_법적규제_통합현황_rev.23.xlsx');
+      downloadBlob(blob,'FCT_성분_법적규제_통합현황_rev.27.xlsx');
       toast('전체 '+state.documents.length+'개 제품 · '+rows.length+'행 다운로드');
     }finally{button.disabled=false;button.textContent='통합 엑셀 다운로드';}
   }
@@ -3065,7 +3077,7 @@
       );
     downloadBlob(
       await workbookBlob(rows),
-      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER13_rev.23.xlsx",
+      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER13_rev.27.xlsx",
     );
   }
   function parseCsv(text) {
@@ -4097,9 +4109,9 @@
   $("homeLogo").addEventListener("click", goHome);
   async function init() {
     try {
-      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.23');
-      regulationDisplay = await import('./vendor/regulation-display.mjs?v=VER13_rev.23');
-      regulatoryModule=await import('./vendor/regulatory-model.mjs?v=VER13_rev.23');
+      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.27');
+      regulationDisplay = await import('./vendor/regulation-display.mjs?v=VER13_rev.27');
+      regulatoryModule=await import('./vendor/regulatory-model.mjs?v=VER13_rev.27');
       refreshLegalRules();
     } catch (error) { console.error('법적기준 모듈 로드 실패', error); }
     state.draftUses = [emptyUse()];
