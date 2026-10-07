@@ -1,4 +1,4 @@
-import {assess, requiredFields, excludedComponent} from './legal-engine.mjs?v=VER13_rev.18';
+import {assess, requiredFields, excludedComponent} from './legal-engine.mjs?v=VER13_rev.19';
 export function regulatoryModel(documents, rules, metadata = d => ({components:d.components || [],regulations:d.regulations || {}})) {
   const ingredients=new Map();
   const products=documents.map(doc=>{
@@ -23,4 +23,20 @@ export function regulatoryModel(documents, rules, metadata = d => ({components:d
   const counts=Object.fromEntries(['chemical','osh','dangerous'].map(group=>[group,{products:products.filter(p=>p.groups[group].length).length,ingredients:rows.filter(r=>r.entries.some(e=>e.applied.some(d=>d.group===group))).length}]));
   counts.review={products:products.filter(p=>p.review).length};
   return {products,ingredients:rows,counts};
+}
+
+export function classificationGroups(model) {
+  const groups=new Map();
+  const add=(key,title,kind,product,ingredient=null)=>{
+    if(!groups.has(key))groups.set(key,{key,title,kind,products:new Map(),ingredients:new Map()});
+    const g=groups.get(key);g.products.set(product.doc.id,product);
+    if(ingredient)g.ingredients.set(ingredient.key,ingredient);
+  };
+  for(const product of model.products)for(const title of product.groups.dangerous)add('dangerous:'+title,title,'dangerous',product);
+  for(const ingredient of model.ingredients)for(const entry of ingredient.entries)for(const decision of entry.applied.filter(d=>d.group==='chemical')) {
+    const m=String(decision.detail || '').match(/(급성|만성|생태|사고대비)\s*최하위\s*([\d.,]+)\s*\/\s*하위\s*([\d.,]+)\s*\/\s*상위\s*([\d.,]+)/);
+    const title=decision.label+' · '+(m?'최하위 '+m[2]+'t / 하위 '+m[3]+'t / 상위 '+m[4]+'t':'규정수량 확인 필요');
+    add('chemical:'+title,title,'chemical',model.products.find(p=>p.doc.id===entry.doc.id),ingredient);
+  }
+  return [...groups.values()].map(g=>({...g,products:[...g.products.values()],ingredients:[...g.ingredients.values()]})).sort((a,b)=>a.kind.localeCompare(b.kind)||a.title.localeCompare(b.title,'ko',{numeric:true}));
 }

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {assess,DEFAULT_RULES,confirmValues,effectiveDocument} from '../vendor/legal-engine.mjs';
-import {regulatoryModel} from '../vendor/regulatory-model.mjs';
+import {regulatoryModel,classificationGroups} from '../vendor/regulatory-model.mjs';
 const methanol={name:'메탄올',cas:'67-56-1',content:'<3%'};
 const doc=(id,components,dangerous=[])=>({id,material_name:id,components,regulations:{physical_state:'액체',dangerous}});
 test('possible boundary exceedance is applicable without a review flag',()=>{
@@ -48,4 +48,11 @@ test('CAS-less Additive and confidential rows are not merged across products',()
  const rows=[doc('A',[{name:'Additive',cas:'',content:'1~5%'}]),doc('B',[{name:'Additive',cas:'',content:'1~5%'}])];
  const result=regulatoryModel(rows,DEFAULT_RULES);
  assert.equal(result.ingredients.length,2);assert.equal(result.counts.review.products,0);
+});
+
+test('classification counts deduplicate products and CAS while retaining separate quantity groups',()=>{
+ const rule={id:'q',cas:'67-56-1',group:'chemical',label:'인체급성유해성물질',threshold:1,effective_date:'2020-01-01',detail:'규정수량(톤) 급성 최하위 0.125/하위 5/상위 400'};
+ const model=regulatoryModel([doc('A',[{...methanol,content:'3%'},{...methanol,content:'3%'}],['제4류 제1석유류(비수용성액체), 지정수량 200L']),doc('B',[{...methanol,content:'3%'}],['제4류 제1석유류(비수용성액체), 지정수량 200L'])],[rule]);
+ const groups=classificationGroups(model),chem=groups.find(g=>g.kind==='chemical'),danger=groups.find(g=>g.kind==='dangerous');
+ assert.equal(chem.ingredients.length,1);assert.equal(chem.products.length,2);assert(chem.title.includes('최하위 0.125t / 하위 5t / 상위 400t'));assert.equal(danger.products.length,2);
 });
