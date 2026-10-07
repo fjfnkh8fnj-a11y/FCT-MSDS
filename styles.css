@@ -2024,3 +2024,5 @@ textarea {
   .reg-product .btn { min-height:40px; }
   .ingredient-head small { display:none; }
 }
+
+.reg-view-toolbar .btn-outline { color:var(--navy); border-color:var(--navy); }
