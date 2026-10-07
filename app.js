@@ -1820,10 +1820,10 @@
       error.code = "SECURED_PDF";
       throw error;
     }
-    await import("./vendor/pdf-compat.mjs?v=VER13_rev.27");
-      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.27");
-    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.27");
-    pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.compat.mjs?v=VER13_rev.27";
+    await import("./vendor/pdf-compat.mjs?v=VER13_rev.28");
+      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.28");
+    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.28");
+    pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.compat.mjs?v=VER13_rev.28";
     let pdf;
     try {
       pdf = await pdfjs.getDocument({ data: bytes }).promise;
@@ -2494,10 +2494,10 @@
       if (!response.ok) throw new Error("PDF 파일을 불러오지 못했습니다.");
       const bytes = new Uint8Array(await response.arrayBuffer());
       if (run !== pdfRenderRun) return;
-      await import("./vendor/pdf-compat.mjs?v=VER13_rev.27");
-      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.27");
-      pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.compat.mjs?v=VER13_rev.27";
-      activePdfTask = pdfjs.getDocument({ data: bytes });
+      await import("./vendor/pdf-mobile.min.js?v=VER13_rev.28");
+      const pdfjs=globalThis.pdfjsLib;
+      pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf-mobile.worker.min.js?v=VER13_rev.28";
+      activePdfTask = pdfjs.getDocument({data:bytes,isEvalSupported:false,useSystemFonts:true});
       const pdf = await activePdfTask.promise;
       if (run !== pdfRenderRun) {
         pdf.destroy();
@@ -2541,8 +2541,8 @@
       if (run !== pdfRenderRun) return;
       loading.classList.add("error");
       loading.textContent = "휴대폰 맞춤 보기를 불러오지 못했습니다. 전체화면 버튼으로 열어 주세요.";
-      frame.src = url + "#toolbar=1&navpanes=0&view=FitH&zoom=page-width";
-      frame.classList.remove("hidden");
+      const native=document.createElement("a");native.href=url;native.target="_blank";native.rel="noopener";native.className="btn btn-blue";native.textContent="PDF 원문 열기";loading.append(document.createElement("br"),native);
+      console.error("모바일 PDF 로드 실패",error);
     }
   }
   async function openDocument(id) {
@@ -2654,7 +2654,7 @@
     }
     downloadBlob(
       await zip.generateAsync({ type: "blob" }),
-      "FCT_MSDS_전체PDF_VER13_rev.27.zip",
+      "FCT_MSDS_전체PDF_VER13_rev.28.zip",
     );
   }
 
@@ -2969,12 +2969,12 @@
     if(!regulatoryModule || !state.documents.length){toast('자료를 불러온 후 다시 다운로드해 주세요.');return;}
     button.disabled=true;button.textContent='엑셀 생성 중…';
     try{
-      const {integratedRows,integratedWorkbook}=await import('./vendor/regulatory-export.mjs?v=VER13_rev.27');
+      const {integratedRows,integratedWorkbook}=await import('./vendor/regulatory-export.mjs?v=VER13_rev.28');
       const rows=integratedRows(regulationModel(),{location:(loc,doc)=>loc&&equipmentPath(loc.equipment_id) || {factory_name:factory(loc?.factory_id || doc.factory_id)?.name || ''},pdfUrl:doc=>hasPdf(doc)?publicFileUrl(doc):'',fileName:shownFileName});
       const response=await fetch('./vendor/regulatory-export-template_rev.21.xlsx');
       if(!response.ok)throw new Error('통합 엑셀 서식을 불러오지 못했습니다.');
       const blob=await integratedWorkbook(JSZip,await response.arrayBuffer(),rows);
-      downloadBlob(blob,'FCT_성분_법적규제_통합현황_rev.27.xlsx');
+      downloadBlob(blob,'FCT_성분_법적규제_통합현황_rev.28.xlsx');
       toast('전체 '+state.documents.length+'개 제품 · '+rows.length+'행 다운로드');
     }finally{button.disabled=false;button.textContent='통합 엑셀 다운로드';}
   }
@@ -3077,7 +3077,7 @@
       );
     downloadBlob(
       await workbookBlob(rows),
-      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER13_rev.27.xlsx",
+      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER13_rev.28.xlsx",
     );
   }
   function parseCsv(text) {
@@ -4109,9 +4109,9 @@
   $("homeLogo").addEventListener("click", goHome);
   async function init() {
     try {
-      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.27');
-      regulationDisplay = await import('./vendor/regulation-display.mjs?v=VER13_rev.27');
-      regulatoryModule=await import('./vendor/regulatory-model.mjs?v=VER13_rev.27');
+      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.28');
+      regulationDisplay = await import('./vendor/regulation-display.mjs?v=VER13_rev.28');
+      regulatoryModule=await import('./vendor/regulatory-model.mjs?v=VER13_rev.28');
       refreshLegalRules();
     } catch (error) { console.error('법적기준 모듈 로드 실패', error); }
     state.draftUses = [emptyUse()];
