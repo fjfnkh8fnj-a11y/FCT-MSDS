@@ -19,5 +19,6 @@ test('native template produces data rows, frozen panes, filters and PDF hyperlin
  const blob=await integratedWorkbook(JSZip,template,[row]);
  const zip=await JSZip.loadAsync(await blob.arrayBuffer()),xml=await zip.file('xl/worksheets/sheet1.xml').async('string');
  assert(xml.includes('제품 &amp; &lt;원문&gt;'));assert(xml.includes('<v>0.01</v>'));assert(!xml.includes('<f>'));
+ assert(xml.indexOf('<hyperlinks>')<xml.indexOf('<pageMargins'));assert(xml.includes('<formula>NOT(ISERROR(SEARCH("○",P5)))</formula>'));
  assert(xml.includes('topLeftCell="F5"'));assert(xml.includes('autoFilter ref="A4:AN5"'));assert(xml.includes('hyperlink ref="AM5"'));assert(zip.file('xl/worksheets/_rels/sheet1.xml.rels'));
 });

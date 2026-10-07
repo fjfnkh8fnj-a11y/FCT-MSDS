@@ -1,4 +1,4 @@
-import {contentRange} from './legal-engine.mjs?v=VER13_rev.22';
+import {contentRange} from './legal-engine.mjs?v=VER13_rev.23';
 export const EXPORT_HEADERS=['번호','공장','부서','설비','제품명','성상','성분명','CAS No.','함량 원문','최소 함량','최대 함량','급성 기준','만성 기준','생태 기준','사고대비 기준','인체급성','인체만성','생태유해성','사고대비','작업환경측정','특수건강진단','관리대상','특별관리','노출기준','허용기준','공정안전보고서','위험물 분류','지정수량','최하위 규정수량(t)','하위 규정수량(t)','상위 규정수량(t)','규정수량 구분','성분판정','제품판정','확인사항','성분별 적용기준','비고','PDF 파일명','PDF 주소','문서ID'];
 const chemical=['인체급성유해성물질','인체만성유해성물질','생태유해성물질','사고대비물질'];
 const osh=['작업환경측정 대상','특수건강진단 대상','관리대상 유해물질','특별관리물질','노출기준설정물질','허용기준설정물질','공정안전보고서 제출 대상'];
@@ -34,10 +34,14 @@ export async function integratedWorkbook(JSZip,template,rows){
  const data=rows.map((row,i)=>'<row r="'+(i+5)+'" ht="48" customHeight="1">'+row.map((v,j)=>'<c r="'+col(j)+(i+5)+'" s="'+(styles[j]||0)+'"'+(typeof v==='number'?'':' t="inlineStr"')+'>'+(typeof v==='number'?'<v>'+v+'</v>':'<is><t xml:space="preserve">'+esc(v)+'</t></is>')+'</c>').join('')+'</row>').join('');
  xml=xml.replace(prototype,data).replace(/<dimension\b[^>]*\/>/,'<dimension ref="A1:AN'+Math.max(4,rows.length+4)+'"/>').replace(/sqref="P5:Z5"/g,'sqref="P5:Z'+Math.max(5,rows.length+4)+'"');
  if(!xml.includes('<autoFilter'))xml=xml.replace('</sheetData>','</sheetData><autoFilter ref="A4:AN'+Math.max(4,rows.length+4)+'"/>');
+ // Excel requires the formula for a containsText conditional rule.
+ xml=xml.replace(/(<cfRule\b[^>]*type="containsText"[^>]*)\/>/g,'$1><formula>NOT(ISERROR(SEARCH("○",P5)))</formula></cfRule>');
  const links=rows.map((r,i)=>({url:r[38],row:i+5})).filter(x=>/^https?:\/\//.test(x.url));
  if(links.length){
    if(!xml.includes('xmlns:r='))xml=xml.replace('<worksheet ','<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ');
-   xml=xml.replace('</worksheet>','<hyperlinks>'+links.map((x,i)=>'<hyperlink ref="AM'+x.row+'" r:id="pdf'+i+'"/>').join('')+'</hyperlinks></worksheet>');
+   const hyperlinkXml='<hyperlinks>'+links.map((x,i)=>'<hyperlink ref="AM'+x.row+'" r:id="pdf'+i+'"/>').join('')+'</hyperlinks>';
+   // CT_Worksheet requires hyperlinks before printOptions/pageMargins.
+   xml=xml.replace(/<(printOptions|pageMargins|pageSetup|headerFooter|drawing|legacyDrawing|extLst)\b|<\/worksheet>/,match=>hyperlinkXml+match);
    zip.file('xl/worksheets/_rels/sheet1.xml.rels','<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+links.map((x,i)=>'<Relationship Id="pdf'+i+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" TargetMode="External" Target="'+esc(x.url)+'"/>').join('')+'</Relationships>');
  }
  zip.file(sheetPath,xml);
