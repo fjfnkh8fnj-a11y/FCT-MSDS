@@ -1820,8 +1820,8 @@
       error.code = "SECURED_PDF";
       throw error;
     }
-    const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.20");
-    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.20");
+    const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.21");
+    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.21");
     pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
     let pdf;
     try {
@@ -2491,7 +2491,7 @@
       if (!response.ok) throw new Error("PDF 파일을 불러오지 못했습니다.");
       const bytes = new Uint8Array(await response.arrayBuffer());
       if (run !== pdfRenderRun) return;
-      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.20");
+      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.21");
       pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
       activePdfTask = pdfjs.getDocument({ data: bytes });
       const pdf = await activePdfTask.promise;
@@ -2642,7 +2642,7 @@
     }
     downloadBlob(
       await zip.generateAsync({ type: "blob" }),
-      "FCT_MSDS_전체PDF_VER13_rev.20.zip",
+      "FCT_MSDS_전체PDF_VER13_rev.21.zip",
     );
   }
 
@@ -2952,6 +2952,20 @@
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
   }
+  async function exportIntegratedExcel() {
+    const button=$('regExcelExportBtn');
+    if(!regulatoryModule || !state.documents.length){toast('자료를 불러온 후 다시 다운로드해 주세요.');return;}
+    button.disabled=true;button.textContent='엑셀 생성 중…';
+    try{
+      const {integratedRows,integratedWorkbook}=await import('./vendor/regulatory-export.mjs?v=VER13_rev.21');
+      const rows=integratedRows(regulationModel(),{location:(loc,doc)=>loc&&equipmentPath(loc.equipment_id) || {factory_name:factory(loc?.factory_id || doc.factory_id)?.name || ''},pdfUrl:doc=>hasPdf(doc)?publicFileUrl(doc):'',fileName:shownFileName});
+      const response=await fetch('./vendor/regulatory-export-template_rev.21.xlsx');
+      if(!response.ok)throw new Error('통합 엑셀 서식을 불러오지 못했습니다.');
+      const blob=await integratedWorkbook(JSZip,await response.arrayBuffer(),rows);
+      downloadBlob(blob,'FCT_성분_법적규제_통합현황_rev.21.xlsx');
+      toast('전체 '+state.documents.length+'개 제품 · '+rows.length+'행 다운로드');
+    }finally{button.disabled=false;button.textContent='통합 엑셀 다운로드';}
+  }
   async function exportExcel() {
     const fid = $("exportFactory").value,
       f = factory(fid),
@@ -3051,7 +3065,7 @@
       );
     downloadBlob(
       await workbookBlob(rows),
-      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER13_rev.20.xlsx",
+      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER13_rev.21.xlsx",
     );
   }
   function parseCsv(text) {
@@ -4002,6 +4016,7 @@
   });
   $('legalAnalyzeBtn').addEventListener('click', () => analyzeLegalPdf().catch(e => toast(e.message)));
   $('legalSaveBtn').addEventListener('click', () => saveLegalSource().catch(e => toast(e.message)));
+  $('regExcelExportBtn').addEventListener('click',()=>exportIntegratedExcel().catch(e=>toast(e.message)));
   $("regSearchInput").addEventListener("input", ()=>renderIngredientDashboard());
   $("regStatusFilter").addEventListener("change", ()=>renderIngredientDashboard());
   $("startRegReviewBtn").addEventListener("click", () => startRegulationReview());
@@ -4082,9 +4097,9 @@
   $("homeLogo").addEventListener("click", goHome);
   async function init() {
     try {
-      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.20');
-      regulationDisplay = await import('./vendor/regulation-display.mjs?v=VER13_rev.20');
-      regulatoryModule=await import('./vendor/regulatory-model.mjs?v=VER13_rev.20');
+      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.21');
+      regulationDisplay = await import('./vendor/regulation-display.mjs?v=VER13_rev.21');
+      regulatoryModule=await import('./vendor/regulatory-model.mjs?v=VER13_rev.21');
       refreshLegalRules();
     } catch (error) { console.error('법적기준 모듈 로드 실패', error); }
     state.draftUses = [emptyUse()];
