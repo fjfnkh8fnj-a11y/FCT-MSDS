@@ -1812,8 +1812,8 @@
       error.code = "SECURED_PDF";
       throw error;
     }
-    const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.17");
-    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.17");
+    const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.18");
+    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.18");
     pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
     let pdf;
     try {
@@ -2483,7 +2483,7 @@
       if (!response.ok) throw new Error("PDF 파일을 불러오지 못했습니다.");
       const bytes = new Uint8Array(await response.arrayBuffer());
       if (run !== pdfRenderRun) return;
-      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.17");
+      const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.18");
       pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.min.mjs";
       activePdfTask = pdfjs.getDocument({ data: bytes });
       const pdf = await activePdfTask.promise;
@@ -2634,7 +2634,7 @@
     }
     downloadBlob(
       await zip.generateAsync({ type: "blob" }),
-      "FCT_MSDS_전체PDF_VER13_rev.17.zip",
+      "FCT_MSDS_전체PDF_VER13_rev.18.zip",
     );
   }
 
@@ -3043,7 +3043,7 @@
       );
     downloadBlob(
       await workbookBlob(rows),
-      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER13_rev.17.xlsx",
+      "FCT_MSDS_" + (f ? safeName(f.name) : "전체") + "_VER13_rev.18.xlsx",
     );
   }
   function parseCsv(text) {
@@ -4072,9 +4072,9 @@
   $("homeLogo").addEventListener("click", goHome);
   async function init() {
     try {
-      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.17');
-      regulationDisplay = await import('./vendor/regulation-display.mjs?v=VER13_rev.17');
-      regulatoryModule=await import('./vendor/regulatory-model.mjs?v=VER13_rev.17');
+      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.18');
+      regulationDisplay = await import('./vendor/regulation-display.mjs?v=VER13_rev.18');
+      regulatoryModule=await import('./vendor/regulatory-model.mjs?v=VER13_rev.18');
       refreshLegalRules();
     } catch (error) { console.error('법적기준 모듈 로드 실패', error); }
     state.draftUses = [emptyUse()];

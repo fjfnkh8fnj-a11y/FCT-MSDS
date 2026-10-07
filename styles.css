@@ -2026,3 +2026,5 @@ textarea {
 }
 
 .reg-view-toolbar .btn-outline { color:var(--navy); border-color:var(--navy); }
+
+#ingredientDashboard .btn-outline { color:var(--navy); border-color:var(--navy); }

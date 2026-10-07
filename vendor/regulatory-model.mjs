@@ -1,4 +1,4 @@
-import {assess, requiredFields, excludedComponent} from './legal-engine.mjs?v=VER13_rev.17';
+import {assess, requiredFields, excludedComponent} from './legal-engine.mjs?v=VER13_rev.18';
 export function regulatoryModel(documents, rules, metadata = d => ({components:d.components || [],regulations:d.regulations || {}})) {
   const ingredients=new Map();
   const products=documents.map(doc=>{
