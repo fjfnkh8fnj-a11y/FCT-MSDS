@@ -1,4 +1,4 @@
-import {contentRange} from './legal-engine.mjs?v=VER13_rev.21';
+import {contentRange} from './legal-engine.mjs?v=VER13_rev.22';
 export const EXPORT_HEADERS=['번호','공장','부서','설비','제품명','성상','성분명','CAS No.','함량 원문','최소 함량','최대 함량','급성 기준','만성 기준','생태 기준','사고대비 기준','인체급성','인체만성','생태유해성','사고대비','작업환경측정','특수건강진단','관리대상','특별관리','노출기준','허용기준','공정안전보고서','위험물 분류','지정수량','최하위 규정수량(t)','하위 규정수량(t)','상위 규정수량(t)','규정수량 구분','성분판정','제품판정','확인사항','성분별 적용기준','비고','PDF 파일명','PDF 주소','문서ID'];
 const chemical=['인체급성유해성물질','인체만성유해성물질','생태유해성물질','사고대비물질'];
 const osh=['작업환경측정 대상','특수건강진단 대상','관리대상 유해물질','특별관리물질','노출기준설정물질','허용기준설정물질','공정안전보고서 제출 대상'];
@@ -25,6 +25,7 @@ export function integratedRows(model,{location=()=>null,pdfUrl=()=>'',fileName=d
 export async function integratedWorkbook(JSZip,template,rows){
  const zip=await JSZip.loadAsync(template),sheetPath='xl/worksheets/sheet1.xml';
  let xml=await zip.file(sheetPath).async('string');
+ xml=xml.replace(/<(\/?)x:/g,'<$1').replace('xmlns:x=','xmlns=');
  const prototype=xml.match(/<row\b[^>]*\br="5"[^>]*>[\s\S]*?<\/row>/)?.[0];
  if(!prototype)throw new Error('통합 엑셀 서식을 읽지 못했습니다.');
  const styles=[...prototype.matchAll(/<c\b([^>]*)/g)].map(x=>x[1].match(/\bs="(\d+)"/)?.[1] || '0');
