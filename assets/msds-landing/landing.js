@@ -34,8 +34,7 @@
     document.body.classList.toggle('msds-landing-open', landing);
     root.setAttribute('aria-hidden', String(!landing));
     syncTimer(); fit();
-    if (landing) root.querySelector('.landing-enter').focus({preventScroll: true});
-    else {
+    if (!landing) {
       window.scrollTo(0, 0);
       const title = document.getElementById('browseTitle');
       if (title) { title.setAttribute('tabindex', '-1'); title.focus({preventScroll: true}); }
