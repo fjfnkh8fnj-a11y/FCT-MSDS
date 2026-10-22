@@ -1,3 +1,4 @@
+import {completeDangerous,dangerousReviewReasons} from './dangerous-quantity.mjs?v=VER13_rev.35';
 import {assess, requiredFields, excludedComponent} from './legal-engine.mjs?v=VER13_rev.23';
 export function regulatoryModel(documents, rules, metadata = d => ({components:d.components || [],regulations:d.regulations || {}})) {
   const ingredients=new Map();
@@ -5,8 +6,8 @@ export function regulatoryModel(documents, rules, metadata = d => ({components:d
     const meta=metadata(doc), settings={ph:meta.regulations.ph,physicalState:meta.regulations.physical_state};
     const result=assess(meta.components,rules,settings);
     const missing=requiredFields({...doc,components:meta.components,regulations:meta.regulations});
-    const review=result.review || missing.length>0 || Boolean(doc.regulations?.pending_revision);
-    const groups={chemical:result.regulations.chemical,osh:[...new Set([...(meta.regulations.osh || []),...result.regulations.osh])],dangerous:meta.regulations.dangerous || []};
+    const review=result.review || missing.length>0 || Boolean(doc.regulations?.pending_revision) || Boolean(meta.regulations.dangerous_review_reasons?.length) || dangerousReviewReasons(meta.regulations.dangerous).length>0;
+    const groups={chemical:result.regulations.chemical,osh:[...new Set([...(meta.regulations.osh || []),...result.regulations.osh])],dangerous:completeDangerous(meta.regulations.dangerous || [])};
     const components=meta.components.map((component,index)=>{
       const outcome=assess([component],rules,settings);
       const applied=outcome.decisions.filter(d=>d.status==='applicable');

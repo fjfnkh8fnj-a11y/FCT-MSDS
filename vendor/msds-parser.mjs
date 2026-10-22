@@ -1,3 +1,4 @@
+import {completeDangerous,dangerousReviewReasons,completeDangerousFromMsds} from './dangerous-quantity.mjs?v=VER13_rev.35';
 import { normalizeComponents, undisclosedComponent, validCas } from './material-values.mjs?v=VER13_rev.23';
 const CAS_RE = /\b\d{2,7}\s*-\s*\d{2}\s*-\s*\d\b/;
 const PRODUCT_LABEL_RE = /(?:^|\s)(?:가\s*[.)]?\s*)?(?:제품명|제품의\s*명칭|화학품\s*명칭|상품명|product\s*(?:name|identifier))\s*[:：]?/i;
@@ -516,11 +517,11 @@ export function findRegulations(data) {
     const dangerSection = end >= 0 ? tail.slice(0, end + 1) : tail.slice(0, 1200);
     const productNegative = /제품\s*[:：]?[^\n]*(?:해당되지\s*않음|규제되지\s*않음)|위험물에\s*해당되지\s*않음|위험물안전관리법[^\n]*(?:해당\s*없음|규제\s*되지\s*않음)/.test(dangerSection);
     if (!productNegative) {
-      const classLine = dangerSection.split("\n").map(clean).find((line) => /제\s*[1-6]\s*류/.test(line));
-      if (classLine) dangerous = [classLine.replace(/^[-·•\s]+/, "").slice(0, 120)];
+      const lines=dangerSection.split("\n").map(clean);
+      dangerous=lines.flatMap((line,i)=>/제\s*[1-6]\s*류/.test(line)?[line.replace(/^[-·•\s]+/, "")+' '+lines.slice(i+1,i+3).filter(x=>/지정수량|^\(?[\d,]+\s*(?:리터|킬로그램|kg|L)/i.test(x)&&!/제\s*[1-6]\s*류/.test(x)).join(' ')]:[]);
     }
   }
-  return { chemical: [...new Set(chemical)], osh: [...new Set(osh)], dangerous };
+  return { chemical: [...new Set(chemical)], osh: [...new Set(osh)], ...completeDangerousFromMsds(dangerous,data.pages.flatMap(page=>page.lines.map(line=>line.text)).join('\n')) };
 }
 
 export function parseMsds(data) {
