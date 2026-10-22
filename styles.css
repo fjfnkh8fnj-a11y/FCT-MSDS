@@ -2043,3 +2043,4 @@ textarea {
 .factory-info-fields{display:grid;grid-template-columns:1fr 100px;gap:12px}.factory-info-dialog textarea{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:5px}
 #factoryInfoError{color:#b42318;font-size:.85rem}.factory-info-dialog footer{justify-content:flex-end;position:sticky;bottom:-20px;padding:12px 0;background:white}
 @media(max-width:600px){.reg-factory-row{grid-template-columns:55px minmax(0,1fr);gap:8px}.reg-factory-row>.btn{grid-column:2;justify-self:start;min-height:44px}.factory-info-dialog{padding:14px}.factory-info-dialog input,.factory-info-dialog select,.factory-info-dialog textarea{font-size:16px}.factory-info-dialog footer{bottom:-14px}}
+.reg-factory-picker .btn-outline{color:var(--navy);background:#fff;border-color:#aab6c8}
