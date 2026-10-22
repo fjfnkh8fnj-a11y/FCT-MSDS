@@ -2127,6 +2127,7 @@
     if(doc?.regulations?.admin_values && $("updateExistingInfo").checked) throw new Error('관리자 확정 제품입니다. 제품 수정 화면에서 값을 수정하거나 새 REV를 등록해 주세요.');
     const updateExisting = !doc || $("updateExistingInfo").checked;
     const saveFile = updateExisting ? file : null;
+    if(doc?.regulations?.factory_management)regulations.factory_management=doc.regulations.factory_management;
     if (DEMO) {
       if (!doc) {
         const id = uid("material");
@@ -3556,6 +3557,7 @@
         group.components=doc.components;
         group.regulations=doc.regulations;
       } else if (blob) await enrichBulkGroupFromPdf(group, blob);
+      if(doc?.regulations?.factory_management)group.regulations.factory_management=doc.regulations.factory_management;
       if (DEMO) {
         if (!doc) {
           const id = uid("material");
