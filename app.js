@@ -34,6 +34,10 @@
     edit: null,
     editDocumentId: "",
     layoutMode: "",
+    factoryInfos: [],
+    regFactory: '',
+    pendingFactoryEdit: null,
+    factoryEdit: null,
     regPath: [],
     regView: 'products',
     regGroup: '',
@@ -56,6 +60,7 @@
   let legalEngine = null;
   let regulationDisplay = null;
   let regulatoryModule = null;
+  let factoryScope = null;
   let layoutLocked = Boolean(localStorage.getItem("fct-layout-mode"));
   let toastTimer = null;
   let pdfRenderRun = 0;
@@ -365,6 +370,7 @@
       if (d?.factories && d?.documents) {
         state.factories = d.factories;
         state.documents = d.documents;
+        state.factoryInfos = d.factoryInfos || [];
         return;
       }
     } catch (e) {}
@@ -379,6 +385,7 @@
       JSON.stringify({
         factories: state.factories,
         documents: state.documents,
+        factoryInfos: state.factoryInfos,
       }),
     );
   }
@@ -498,6 +505,7 @@
         })),
       }))
       ;
+    state.factoryInfos = factoryScope.managementRecords(state.documents);
     try {
       state.legalSources = await api('/rest/v1/legal_sources?select=*&order=created_at.desc') || [];
     } catch (e) {
@@ -974,7 +982,7 @@
     }).sort((a, b) => a.name.localeCompare(b.name, "ko"));
   }
   function pendingRegulationDocuments() {
-    return state.documents.filter(d => legalEngine.requiredFields(d).length || legalAssessmentFor(d)?.review || d.regulations?.pending_revision);
+    return (factoryScope?factoryScope.scopeDocuments(state.documents,state.regFactory):state.documents).filter(d => legalEngine.requiredFields(d).length || legalAssessmentFor(d)?.review || d.regulations?.pending_revision);
   }
   function startRegulationReview(firstId = "") {
     state.reviewQueue = pendingRegulationDocuments().map((d) => d.id);
@@ -1033,10 +1041,10 @@
       );
     return [];
   }
-  function regulationModel() { return regulatoryModule.regulatoryModel(state.documents,state.legalRules,metadataFor); }
+  function regulationModel() { return regulatoryModule.regulatoryModel(factoryScope.scopeDocuments(state.documents,state.regFactory),state.legalRules,metadataFor); }
   function regulationBadge(status) { return '<span class="decision '+status+'">'+(status==='applicable'?'해당':status==='review'?'확인 필요':'해당없음')+'</span>'; }
   function regulatoryPdfButton(doc) { return hasPdf(doc)?'<button type="button" class="btn btn-blue btn-small" data-open-doc="'+esc(doc.id)+'">PDF 보기</button>':''; }
-  function regulatoryEditButton(doc,index=null,review=false) { return '<button type="button" class="btn btn-small '+(review?'btn-review':'btn-outline')+'" data-review-doc="'+esc(doc.id)+'"'+(index!==null?' data-component-index="'+index+'"':'')+'>'+(review?'확인·수정':'수정')+'</button>'; }
+  function regulatoryEditButton(doc,index=null,review=false) { return '<button type="button" class="btn btn-small '+(review?'btn-review':'btn-outline')+'" data-review-doc="'+esc(doc.id)+'"'+(index!==null?' data-component-index="'+index+'"':'')+'>'+(review?'확인·수정':'공통정보 수정')+'</button>'; }
   function regulatoryComponentHtml(item,doc) {
     const c=item.component;
     return '<section class="reg-component"><div class="reg-component-heading"><div><b>'+esc(c.name || '성분명 확인 필요')+'</b><small>CAS '+esc(c.cas || '-')+' · 함량 '+esc(c.content || '미입력')+'</small></div>'+regulatoryEditButton(doc,item.index,item.outcome.review)+'</div>'+componentCriteriaHtml({...c,id:undefined},doc)+'</section>';
@@ -1046,7 +1054,60 @@
     const labels=[...new Set([...groups.chemical,...groups.osh,...(groups.dangerous.length?['위험물']:[])])];
     const why=[...product.missing,...components.filter(c=>c.outcome.review).map(c=>c.component.name+' · '+(c.outcome.validations.filter(v=>v.unresolved).map(v=>v.message).join(' · ') || '성분·함량 또는 적용조건 확인 필요')),...(doc.regulations?.pending_revision?['새 PDF 변경 확인 필요']:[])];
     const open=state.regExpanded===doc.id;
-    return '<article class="reg-product '+(review?'needs-review':'')+'"><div class="reg-product-head"><div><b>'+esc(doc.material_name)+'</b><small>성분 '+components.length+'개</small></div><div class="reg-product-result">'+regulationBadge(status)+' '+esc(labels.join(' · '))+(review?'<small>'+regulationBadge('review')+' '+esc([...new Set(why)].join(' · '))+'</small>':'')+(groups.dangerous.length?'<div class="reg-danger-summary">'+esc(groups.dangerous.join(' · '))+'</div>':'')+'</div><div class="reg-product-actions">'+regulatoryPdfButton(doc)+'<button type="button" class="btn btn-outline btn-small" data-reg-product="'+esc(doc.id)+'" aria-expanded="'+open+'">'+(open?'접기':'상세')+'</button>'+regulatoryEditButton(doc,review?components.find(c=>c.outcome.review)?.index ?? null:null,review)+'</div></div>'+(focus?'<div class="reg-focus-component">'+regulatoryComponentHtml(focus,doc)+'</div>':'')+(open?'<div class="reg-product-details">'+components.map(c=>regulatoryComponentHtml(c,doc)).join('')+(groups.dangerous.length?'<div class="reg-danger-summary"><b>제품 위험물 분류</b><div>'+esc(groups.dangerous.join(' · '))+'</div><small>등록된 MSDS 제15항 · 위험물안전관리법 시행령 별표 1 대조</small></div>':'')+'</div>':'')+'</article>';
+    return '<article class="reg-product '+(review?'needs-review':'')+'"><div class="reg-product-head"><div><b>'+esc(doc.material_name)+'</b><small>성분 '+components.length+'개</small></div><div class="reg-product-result">'+regulationBadge(status)+' '+esc(labels.join(' · '))+(review?'<small>'+regulationBadge('review')+' '+esc([...new Set(why)].join(' · '))+'</small>':'')+(groups.dangerous.length?'<div class="reg-danger-summary">'+esc(groups.dangerous.join(' · '))+'</div>':'')+'</div><div class="reg-product-actions">'+regulatoryPdfButton(doc)+'<button type="button" class="btn btn-outline btn-small" data-reg-product="'+esc(doc.id)+'" aria-expanded="'+open+'">'+(open?'접기':'상세')+'</button>'+regulatoryEditButton(doc,review?components.find(c=>c.outcome.review)?.index ?? null:null,review)+'</div></div>'+regulatoryFactoryHtml(doc)+(focus?'<div class="reg-focus-component">'+regulatoryComponentHtml(focus,doc)+'</div>':'')+(open?'<div class="reg-product-details">'+components.map(c=>regulatoryComponentHtml(c,doc)).join('')+(groups.dangerous.length?'<div class="reg-danger-summary"><b>제품 위험물 분류</b><div>'+esc(groups.dangerous.join(' · '))+'</div><small>등록된 MSDS 제15항 · 위험물안전관리법 시행령 별표 1 대조</small></div>':'')+'</div>':'')+'</article>';
+  }
+  function regulatoryFactoryHtml(doc) {
+    const fids=[...new Set((doc.locations || []).map(l=>l.factory_id))];
+    if(!fids.length)return '<div class="reg-factory-row"><span>사용처 미연결</span></div>';
+    return '<div class="reg-factory-usages">'+fids.map(fid=>{
+      const info=factoryScope.factoryRecord(state.factoryInfos,doc.id,fid);
+      const uses=(doc.locations || []).filter(l=>l.factory_id===fid).map(l=>[l.department_name || dept(fid,l.department_id)?.name,l.equipment_name || equip(fid,l.department_id,l.equipment_id)?.name].filter(Boolean).join(' › '));
+      return '<div class="reg-factory-row"><b>'+esc(factory(fid)?.name || '')+'</b><div>'+esc([...new Set(uses)].join(' / '))+'<small>최대 보관량 '+(info?.max_storage_quantity!==null&&info?.max_storage_quantity!==undefined?esc(info.max_storage_quantity)+' '+esc(info.storage_unit):'미입력')+(info?.notes?' · '+esc(info.notes):'')+'</small></div><button type="button" class="btn btn-outline btn-small" data-factory-edit="'+esc(doc.id)+'" data-factory-id="'+esc(fid)+'">관리정보 수정</button></div>';
+    }).join('')+(doc.notes?'<small class="reg-common-note">공통 비고 · '+esc(doc.notes)+'</small>':'')+'</div>';
+  }
+  async function openFactoryInfo(id,fid) {
+    if(!state.admin){state.pendingFactoryEdit={id,fid};openLogin();return;}
+    const doc=state.documents.find(d=>d.id===id),f=factory(fid);
+    if(!doc || !f)return;
+    try {
+      if(!DEMO)await remoteLoad();
+      const current=state.documents.find(d=>d.id===id);
+      const info=factoryScope.factoryRecord(state.factoryInfos,id,fid);
+      const selected=(current.locations || []).filter(l=>l.factory_id===fid).map(l=>l.equipment_id);
+      if(!selected.length)throw new Error('이 공장의 사용처가 변경되었습니다. 다시 선택해 주세요.');
+      state.factoryEdit={id,fid,document:JSON.parse(JSON.stringify(current)),equipmentIds:selected};
+      $('factoryInfoTitle').textContent=current.material_name+' · '+f.name;
+      $('factoryInfoQuantity').value=info?.max_storage_quantity ?? '';
+      $('factoryInfoUnit').value=info?.storage_unit || 'L';
+      $('factoryInfoNotes').value=info?.notes || '';
+      $('factoryInfoError').textContent='';
+      $('factoryInfoLocations').innerHTML=f.departments.filter(d=>d.equipments.length).map(d=>'<section><b>'+esc(d.name)+'</b><div>'+d.equipments.map(e=>'<label><input type="checkbox" name="factoryEquipment" value="'+esc(e.id)+'"'+(selected.includes(e.id)?' checked':'')+'> '+esc(e.name)+'</label>').join('')+'</div></section>').join('');
+      $('factoryInfoDialog').showModal();
+    }catch(error){toast(error.message);}
+  }
+  async function saveFactoryInfo(event) {
+    event.preventDefault();
+    if(!state.admin || !state.factoryEdit)return;
+    const button=$('factoryInfoSave');button.disabled=true;
+    const edit=state.factoryEdit;
+    try {
+      const ids=[...$('factoryInfoLocations').querySelectorAll('input:checked')].map(e=>e.value);
+      if(!ids.length)throw new Error('사용처를 1개 이상 선택해 주세요.');
+      const raw=$('factoryInfoQuantity').value;
+      const quantity=raw===''?null:Number(raw);
+      if(quantity!==null&&(!Number.isFinite(quantity)||quantity<0))throw new Error('수량은 0 이상의 숫자로 입력해 주세요.');
+      const info={document_id:edit.id,factory_id:edit.fid,max_storage_quantity:quantity,storage_unit:$('factoryInfoUnit').value,notes:$('factoryInfoNotes').value.trim()};
+      if(DEMO){
+        const index=state.documents.findIndex(d=>d.id===edit.id);
+        state.documents[index]=factoryScope.replaceFactoryLocations(state.documents[index],edit.fid,ids.map(equipmentPath));
+        state.factoryInfos=state.factoryInfos.filter(r=>r.document_id!==edit.id||r.factory_id!==edit.fid);
+        state.factoryInfos.push({...info,updated_at:new Date().toISOString()});demoSave();
+      }else{
+        await factoryScope.saveFactoryManagement(api,edit.document,edit.fid,info,ids.map(equipmentPath));
+        await remoteLoad();
+      }
+      $('factoryInfoDialog').close();renderAll();toast(factory(edit.fid).name+' 관리정보를 저장했습니다.');
+    }catch(error){$('factoryInfoError').textContent=error.message;}finally{button.disabled=false;}
   }
   function regulatoryIngredientHtml(row,model) {
     const labels=[...new Set(row.entries.flatMap(e=>e.applied.map(d=>d.label)))];
@@ -1057,8 +1118,11 @@
   function renderRegulatoryDashboard() {
     if(!regulatoryModule)return;
     const box=$('regDashboard');if(!box)return;
+    const picker=$('regFactoryPicker');
+    if(picker)picker.innerHTML=[{id:'',name:'전체'},...state.factories].map(f=>'<button type="button" class="btn '+(state.regFactory===f.id?'btn-blue':'btn-outline')+'" data-reg-factory="'+esc(f.id)+'" aria-pressed="'+(state.regFactory===f.id)+'">'+esc(f.name)+'</button>').join('');
     const model=regulationModel(),groups=[['chemical','화관법'],['osh','산안법'],['dangerous','위험물'],['review','확인 필요']];
     $('regBackBtn').classList.add('hidden');
+    $('regFactorySummary').textContent=(factory(state.regFactory)?.name || '전체 공장')+' · 제품 '+model.products.length+'개 · PDF·성분정보 공통 / 사용처·수량·비고 공장별 관리';
     $('regBreadcrumb').textContent=state.regGroup?(groups.find(([key])=>key===state.regGroup)?.[1] || '')+' · '+(state.regView==='ingredients'?'성분별':state.regView==='classifications'?'분류별':'제품별'):'전체 법적 규제현황';
     $('regReviewSummary').textContent='확인 필요 '+model.counts.review.products+'개 제품';
     box.innerHTML=groups.map(([key,label])=>{const n=model.counts[key],isProduct=key==='dangerous'||key==='review';return '<button type="button" class="reg-group reg-group-'+key+' '+(state.regGroup===key?'selected':'')+'" data-reg-category="'+key+'" aria-pressed="'+(state.regGroup===key)+'"><span>'+label+'</span><strong>'+(isProduct?n.products+'개 제품':n.ingredients+'개 성분')+'</strong><small>'+(isProduct?(key==='dangerous'?'류·품명·지정수량':'성분·함량·적용조건 확인'):'사용 제품 '+n.products+'개')+'</small></button>';}).join('');
@@ -1163,6 +1227,7 @@
       $("loginForm").reset();
       applyAdminUi();
       toast("관리자 모드로 전환했습니다.");
+      if(state.pendingFactoryEdit){const next=state.pendingFactoryEdit;state.pendingFactoryEdit=null;openFactoryInfo(next.id,next.fid);}
       if (state.pendingEditDocumentId) { const id=state.pendingEditDocumentId; state.pendingEditDocumentId=""; openEditDocument(id); }
     } catch (err) {
       state.token = "";
@@ -2261,6 +2326,7 @@
       equipment_id: l.equipment_id,
       process_id: l.process_id,
     }));
+    if(d.regulations?._factory_write_lock && Date.parse(d.regulations._factory_write_lock)>Date.now()){toast("다른 저장이 진행 중입니다. 잠시 후 다시 열어 주세요.");return;}
     $("editMaterialName").value = d.material_name;
     $("editMaterialNote").value = d.notes || "";
     const meta = metadataFor(d), r = meta.regulations || {};
@@ -2969,13 +3035,14 @@
     if(!regulatoryModule || !state.documents.length){toast('자료를 불러온 후 다시 다운로드해 주세요.');return;}
     button.disabled=true;button.textContent='엑셀 생성 중…';
     try{
-      const {integratedRows,integratedWorkbook}=await import('./vendor/regulatory-export.mjs?v=VER13_rev.28');
-      const rows=integratedRows(regulationModel(),{location:(loc,doc)=>loc&&equipmentPath(loc.equipment_id) || {factory_name:factory(loc?.factory_id || doc.factory_id)?.name || ''},pdfUrl:doc=>hasPdf(doc)?publicFileUrl(doc):'',fileName:shownFileName});
+      const {integratedRows,integratedWorkbook}=await import('./vendor/regulatory-export.mjs?v=VER13_rev.31');
+      const scopedModel=regulationModel();
+      const rows=integratedRows(scopedModel,{factoryInfo:(doc,loc)=>factoryScope.factoryRecord(state.factoryInfos,doc.id,loc?.factory_id),location:(loc,doc)=>loc&&equipmentPath(loc.equipment_id) || {factory_name:factory(loc?.factory_id || doc.factory_id)?.name || ''},pdfUrl:doc=>hasPdf(doc)?publicFileUrl(doc):'',fileName:shownFileName});
       const response=await fetch('./vendor/regulatory-export-template_rev.21.xlsx');
       if(!response.ok)throw new Error('통합 엑셀 서식을 불러오지 못했습니다.');
       const blob=await integratedWorkbook(JSZip,await response.arrayBuffer(),rows);
-      downloadBlob(blob,'FCT_성분_법적규제_통합현황_rev.28.xlsx');
-      toast('전체 '+state.documents.length+'개 제품 · '+rows.length+'행 다운로드');
+      downloadBlob(blob,'FCT_'+(factory(state.regFactory)?.name || '전체')+'_성분_법적규제_통합현황_rev.31.xlsx');
+      toast((factory(state.regFactory)?.name || '전체')+' '+scopedModel.products.length+'개 제품 · '+rows.length+'행 다운로드');
     }finally{button.disabled=false;button.textContent='통합 엑셀 다운로드';}
   }
   async function exportExcel() {
@@ -3750,6 +3817,10 @@
     }
   });
   document.addEventListener("click", async (e) => {
+    const factoryButton=e.target.closest('[data-reg-factory]');
+    if(factoryButton){state.regFactory=factoryButton.dataset.regFactory;state.regExpanded='';state.regIngredient='';state.regClassification='';renderRegulatoryDashboard();return;}
+    const factoryEdit=e.target.closest('[data-factory-edit]');
+    if(factoryEdit){openFactoryInfo(factoryEdit.dataset.factoryEdit,factoryEdit.dataset.factoryId);return;}
     const category=e.target.closest('[data-reg-category]');
     if(category){state.regGroup=state.regGroup===category.dataset.regCategory?'':category.dataset.regCategory;if(state.regView!=='classifications')state.regView=['chemical','osh'].includes(state.regGroup)?'ingredients':'products';state.regExpanded='';state.regIngredient='';renderRegulatoryDashboard();return;}
     const regView=e.target.closest('[data-reg-view]');
@@ -3760,7 +3831,7 @@
     if(regProduct){state.regExpanded=state.regExpanded===regProduct.dataset.regProduct?'':regProduct.dataset.regProduct;renderIngredientDashboard();return;}
     const regIngredient=e.target.closest('[data-reg-ingredient]');
     if(regIngredient){state.regIngredient=state.regIngredient===regIngredient.dataset.regIngredient?'':regIngredient.dataset.regIngredient;state.regExpanded='';renderIngredientDashboard();return;}
-    if(e.target.closest('#regResetBtn')){state.regGroup='';state.regView='products';state.regExpanded='';state.regIngredient='';$('regSearchInput').value='';$('regStatusFilter').value='';renderRegulatoryDashboard();return;}
+    if(e.target.closest('#regResetBtn')){state.regFactory='';state.regGroup='';state.regView='products';state.regExpanded='';state.regIngredient='';$('regSearchInput').value='';$('regStatusFilter').value='';renderRegulatoryDashboard();return;}
     const clearSelection=e.target.closest('[data-clear-reg-selections]');
     if(clearSelection){const id=clearSelection.dataset.clearRegSelections;const c=[...state.editComponents,...state.draftComponents].find(c=>c.id===id);if(c)c.regulation_selections={};if(state.editComponents.some(c=>c.id===id))renderEditComponentRows();else renderComponentRows();return;}
     const review = e.target.closest("[data-review-doc]");
@@ -4029,6 +4100,7 @@
   $('legalAnalyzeBtn').addEventListener('click', () => analyzeLegalPdf().catch(e => toast(e.message)));
   $('legalSaveBtn').addEventListener('click', () => saveLegalSource().catch(e => toast(e.message)));
   $('regExcelExportBtn').addEventListener('click',()=>exportIntegratedExcel().catch(e=>toast(e.message)));
+  $('factoryInfoForm').addEventListener('submit',saveFactoryInfo);
   $("regSearchInput").addEventListener("input", ()=>renderIngredientDashboard());
   $("regStatusFilter").addEventListener("change", ()=>renderIngredientDashboard());
   $("startRegReviewBtn").addEventListener("click", () => startRegulationReview());
@@ -4111,7 +4183,8 @@
     try {
       legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.28');
       regulationDisplay = await import('./vendor/regulation-display.mjs?v=VER13_rev.28');
-      regulatoryModule=await import('./vendor/regulatory-model.mjs?v=VER13_rev.28');
+      regulatoryModule=await import('./vendor/regulatory-model.mjs?v=VER13_rev.31');
+      factoryScope=await import('./vendor/factory-scope.mjs?v=VER13_rev.31');
       refreshLegalRules();
     } catch (error) { console.error('법적기준 모듈 로드 실패', error); }
     state.draftUses = [emptyUse()];

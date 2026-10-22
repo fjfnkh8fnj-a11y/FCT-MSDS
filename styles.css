@@ -2028,3 +2028,18 @@ textarea {
 .reg-view-toolbar .btn-outline { color:var(--navy); border-color:var(--navy); }
 
 #ingredientDashboard .btn-outline { color:var(--navy); border-color:var(--navy); }
+
+/* VER13 rev.31: shared PDF, factory-specific management. */
+.reg-factory-picker{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.reg-factory-usages{margin-top:12px;border-top:1px solid var(--line)}
+.reg-factory-row{display:grid;grid-template-columns:65px minmax(0,1fr) auto;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line);font-size:.85rem}
+.reg-factory-row small,.reg-common-note{display:block;color:var(--muted);font-size:.78rem;margin-top:4px;overflow-wrap:anywhere}
+.factory-info-dialog{width:min(660px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:20px;border:0;border-radius:12px;overflow:auto;color:var(--navy)}
+.factory-info-dialog::backdrop{background:rgba(12,25,53,.55)}
+.factory-info-dialog header,.factory-info-dialog footer{display:flex;align-items:center;justify-content:space-between;gap:12px}.factory-info-dialog h3{margin:0;font-size:1.1rem}
+.factory-info-dialog fieldset{border:1px solid var(--line);border-radius:7px;margin:14px 0;padding:12px}
+#factoryInfoLocations section+section{margin-top:12px}#factoryInfoLocations section>div{display:flex;flex-wrap:wrap;gap:4px 16px}
+#factoryInfoLocations label{display:flex;align-items:center;gap:6px;min-height:42px;font-size:.85rem}#factoryInfoLocations input{width:18px;height:18px}
+.factory-info-fields{display:grid;grid-template-columns:1fr 100px;gap:12px}.factory-info-dialog textarea{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:5px}
+#factoryInfoError{color:#b42318;font-size:.85rem}.factory-info-dialog footer{justify-content:flex-end;position:sticky;bottom:-20px;padding:12px 0;background:white}
+@media(max-width:600px){.reg-factory-row{grid-template-columns:55px minmax(0,1fr);gap:8px}.reg-factory-row>.btn{grid-column:2;justify-self:start;min-height:44px}.factory-info-dialog{padding:14px}.factory-info-dialog input,.factory-info-dialog select,.factory-info-dialog textarea{font-size:16px}.factory-info-dialog footer{bottom:-14px}}
