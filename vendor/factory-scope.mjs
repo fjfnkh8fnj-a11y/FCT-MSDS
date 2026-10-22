@@ -3,8 +3,7 @@ export function scopeDocuments(documents, factoryId = '') {
   if (!factoryId) return documents;
   return documents.flatMap(doc => {
     const locations = (doc.locations || []).filter(l => l.factory_id === factoryId);
-    return locations.length || (!(doc.locations || []).length && doc.factory_id === factoryId)
-      ? [{...doc, locations}] : [];
+    return locations.length ? [{...doc, locations}] : [];
   });
 }
 export function factoryRecord(records, documentId, factoryId) {

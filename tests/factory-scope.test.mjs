@@ -4,7 +4,7 @@ import {scopeDocuments,replaceFactoryLocations,managementRecords,saveFactoryMana
 const base=()=>({id:'shared',updated_at:'v1',file_name:'one.pdf',storage_path:'shared/one.pdf',components:[{name:'MEK',cas:'78-93-3',content:'3%'}],regulations:{osh:['관리대상 유해물질'],factory_management:{two:{notes:'2공장 기존',max_storage_quantity:80}}},locations:[{id:'a',factory_id:'one',equipment_id:'a',department_id:'d1'},{id:'b',factory_id:'two',equipment_id:'b',department_id:'d2'}]});
 test('factory filtering keeps a single shared PDF and does not mutate the source',()=>{
  const doc=base(),docs=[doc,{id:'only2',factory_id:'two',locations:[]}];
- assert.equal(scopeDocuments(docs).length,2);assert.equal(scopeDocuments(docs,'one').length,1);
+ assert.equal(scopeDocuments(docs).length,2);assert.equal(scopeDocuments(docs,'one').length,1);assert.equal(scopeDocuments(docs,'two').length,1);
  const scoped=scopeDocuments(docs,'one')[0];assert.equal(scoped.storage_path,doc.storage_path);assert.deepEqual(scoped.components,doc.components);assert.equal(scoped.locations.length,1);assert.equal(doc.locations.length,2);
  assert.equal(managementRecords(docs)[0].factory_id,'two');
  assert.deepEqual(replaceFactoryLocations(doc,'one',[{factory_id:'one',equipment_id:'new'}]).locations.map(l=>l.equipment_id),['b','new']);

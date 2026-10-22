@@ -4186,7 +4186,7 @@
       legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.28');
       regulationDisplay = await import('./vendor/regulation-display.mjs?v=VER13_rev.28');
       regulatoryModule=await import('./vendor/regulatory-model.mjs?v=VER13_rev.31');
-      factoryScope=await import('./vendor/factory-scope.mjs?v=VER13_rev.31');
+      factoryScope=await import('./vendor/factory-scope.mjs?v=VER13_rev.34');
       refreshLegalRules();
     } catch (error) { console.error('법적기준 모듈 로드 실패', error); }
     state.draftUses = [emptyUse()];
