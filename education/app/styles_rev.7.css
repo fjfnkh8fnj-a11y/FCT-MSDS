@@ -1,0 +1,113 @@
+/* FCT 교육관리 VER3 rev.3 - 모든 화면의 hidden 속성이 layout display 보다 우선하도록 강제 */
+[hidden], [hidden=""] { display: none !important; }
+:root{--nav:#112e3b;--teal:#118a85;--teal2:#0c6b72;--ink:#16303e;--muted:#657c88;--line:#dce9ec;--bg:#f3f7f8;--white:#fff;--danger:#be514c;color-scheme:light;font-family:Pretendard,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;color:var(--ink);background:var(--bg);font-size:14px}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer;font-weight:700;background:#e8f1f3;color:#235461;border:1px solid transparent;border-radius:9px;padding:10px 13px;min-height:39px}
+button:hover{filter:brightness(.98)}
+button:disabled{cursor:not-allowed;opacity:.45}
+button.primary{background:var(--teal);color:white}
+button.outline{background:white;border-color:#a5c9cd;color:var(--teal2)}
+button.danger{background:#fff0ee;color:#a63230;border-color:#f1d4d1}
+button.small{padding:7px 9px;min-height:31px;font-size:12px}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #8dd6d0;outline-offset:2px}
+input,select,textarea{width:100%;padding:10px 12px;border:1px solid #c7d9df;border-radius:9px;background:white;color:var(--ink);font-size:14px}
+input[type=file]{padding:9px}
+input[type=checkbox],input[type=radio]{width:auto;accent-color:var(--teal)}
+textarea{min-height:80px;resize:vertical}
+label{font-size:12px;font-weight:700;color:#486576;display:block}
+label input,label select,label textarea{display:block;margin-top:6px}
+h1{margin:0 0 10px;font-size:24px;letter-spacing:-.7px}
+h2{margin:0 0 14px;font-size:18px}
+h3{margin:16px 0 8px;font-size:15px}
+p{line-height:1.7;margin:7px 0;color:#566e7a}
+small,.note{font-size:12px;color:var(--muted)}
+a{color:var(--teal2);text-decoration:none}
+a:hover{text-decoration:underline}
+.topbar{height:72px;background:var(--nav);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:20;gap:12px}
+.topbrand{display:flex;align-items:center;gap:13px}
+.topbrand .mark{font-size:30px;font-weight:950;letter-spacing:-3px;color:#66d6ce}
+.topbrand b{display:block;font-size:18px;letter-spacing:.4px}
+.topbrand small{display:block;color:#a8c8ca;letter-spacing:.7px;font-size:10px}
+.account{display:flex;gap:10px;align-items:center;font-size:12px}
+.account button{min-height:31px}
+.chip{font-size:11px;border-radius:30px;padding:6px 10px;background:#e5f6f1;color:#0c7b70;font-weight:750}
+.topbar .chip{background:#1a5159;color:#8be4d9}
+.loading{margin:60px auto;text-align:center;color:#63868c}
+.auth-wrap{min-height:calc(100vh - 72px);padding:55px 16px}
+.auth-card{background:white;border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 60px #0e30401a;padding:30px;width:min(520px,100%);margin:auto}
+.auth-heading{text-align:center;margin-bottom:24px}
+.auth-switch{background:#edf5f6;border-radius:10px;display:flex;padding:4px;gap:2px;margin-bottom:20px}
+.auth-switch button{font-size:12px;flex:1;padding:10px 5px;background:transparent;font-weight:750}
+.auth-switch button.active{background:white;box-shadow:0 1px 5px #0b39401c;color:var(--teal2)}
+.stack{display:flex;flex-direction:column;gap:13px}
+.notice{padding:12px;background:#fff8ea;color:#795821;border:1px solid #eadbb8;border-radius:10px;font-size:12px;line-height:1.65}
+.workspace{display:flex;min-height:calc(100vh - 72px)}
+.nav{width:230px;flex:none;background:#173a47;padding:20px 13px;color:#bed5dc;display:flex;flex-direction:column;gap:7px;position:sticky;top:72px;align-self:flex-start;height:calc(100vh - 72px)}
+.nav button{width:100%;text-align:left;border:0;background:transparent;color:#c0d2d8;font-size:14px;border-radius:9px;padding:12px 14px}
+.nav button.active,.nav button:hover{background:#1d6168;color:white}
+.nav .nav-info{font-size:11px;color:#a4bcc1;border-top:1px solid #406470;margin-top:auto;padding:15px 13px}
+.main{flex:1;min-width:0;max-width:1500px;padding:30px 34px}
+.box{background:#fff;border:1px solid var(--line);padding:22px;border-radius:14px;margin-bottom:15px;box-shadow:0 6px 20px #14374509}
+.pagehead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-bottom:18px}
+.pagehead h1{margin:0 0 6px}
+.pagehead p{margin:0}
+.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin:0 0 18px}
+.kpi{background:white;border:1px solid var(--line);border-radius:13px;padding:18px}
+.kpi span{color:#627c86;font-size:12px}
+.kpi b{font-size:26px;display:block;margin:8px 0 0;letter-spacing:-1px}
+.kpi small{display:block;margin-top:3px}
+.formgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.formgrid .wide{grid-column:1/-1}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.between{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+.filter{display:flex;gap:10px;margin-bottom:13px;align-items:center;flex-wrap:wrap}
+.filter select,.filter input{width:auto;min-width:175px}
+.table-scroll{overflow:auto;max-width:100%}
+table{width:100%;border-collapse:collapse;min-width:560px;font-size:13px}
+th{padding:11px 12px;text-align:left;background:#f3f8f8;color:#5d7481;font-size:12px}
+td{border-top:1px solid #edf1f2;padding:11px 12px;vertical-align:middle}
+tr:hover td{background:#fcfefe}
+.empty{padding:30px;text-align:center;color:#8da1a8}
+.pill{padding:5px 9px;background:#eff4f5;color:#526f77;border-radius:30px;font-size:11px;font-weight:800;display:inline-block}
+.pill.good{background:#e6f8ef;color:#137456}
+.pill.warn{background:#fff3dd;color:#966519}
+.pill.bad{background:#fff0ee;color:#ad4b43}
+.separator{border:0;border-top:1px solid var(--line);margin:20px 0}
+.course-card{border:1px solid var(--line);border-radius:11px;padding:18px;margin-bottom:11px;background:white}
+.course-card h3{margin:5px 0 8px}
+.info{color:var(--muted);font-size:12px}
+.quiz-question{border:1px solid #dfe9ec;border-radius:10px;padding:15px;margin:12px 0}
+.quiz-choice{display:flex;gap:8px;align-items:center;padding:9px 0;cursor:pointer;font-size:13px}
+.quiz-choice input{margin:0}
+.signature-pad{width:100%;height:160px;display:block;touch-action:none;background:white;border:1px dashed #90b9c0;border-radius:9px}
+.player{width:min(100%,740px);aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:#112c38;margin:10px 0 14px}
+.player iframe{width:100%;height:100%;border:0}
+.progressbar{background:#dfecef;height:7px;border-radius:30px;overflow:hidden;margin:8px 0}
+.progressbar div{height:100%;background:var(--teal)}
+.material{border:1px solid var(--line);border-radius:9px;padding:13px;margin:7px 0}
+.material a{word-break:break-all}
+.toast{position:fixed;bottom:25px;left:50%;transform:translateX(-50%);background:#173b47;color:white;padding:12px 18px;border-radius:10px;box-shadow:0 8px 30px #0002;z-index:99;max-width:min(92vw,550px);white-space:pre-wrap;font-size:13px}
+.toast.error{background:#a73e3b}
+dialog{border:0;border-radius:15px;padding:0;width:min(540px,96vw);box-shadow:0 12px 70px #072c3555}
+dialog::backdrop{background:#0b2e3e8a}
+#dialogBody{padding:24px}
+.modal-footer{border-top:1px solid var(--line);padding:12px 24px;display:flex;justify-content:flex-end}
+dialog h2{margin:0 0 14px}
+.badge-count{font-size:12px;color:#5a8187}
+@media(max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}.main{padding:23px}.nav{width:175px}.nav button{padding:11px 8px}}
+@media(max-width:650px){.topbar{height:64px;padding:0 15px}.topbrand .mark{font-size:27px}.topbrand b{font-size:16px}.topbrand small{font-size:8px}.topbar .chip{display:none}.workspace{display:block}.nav{position:sticky;top:64px;height:auto;width:100%;overflow-x:auto;flex-direction:row;align-self:auto;z-index:15;padding:8px;gap:5px}.nav button{width:auto;white-space:nowrap;font-size:12px;padding:9px 12px;flex:none;min-height:34px}.nav .nav-info{display:none}.main{padding:17px 14px}.box{padding:16px}.auth-wrap{padding:23px 12px}.auth-card{padding:18px}.auth-switch button{font-size:11px}.grid{gap:9px}.kpi{padding:12px}.kpi b{font-size:21px}.formgrid{grid-template-columns:1fr}.filter select,.filter input{width:100%}.filter{flex-direction:column;align-items:stretch}.pagehead h1{font-size:20px}.actions button{flex:1 1 auto}.topbar .account{font-size:11px}}
+
+/* VER3 rev.4: employee password self-setup and administrator request panels */
+#formRegister,#formForgot,#formPending{max-width:100%}
+.auth-switch button{line-height:1.35}
+.auth-switch button.active{color:#0a7179}
+#staffFilter{max-width:450px}
+@media(max-width:650px){.auth-switch button{font-size:10px;padding:9px 4px}.auth-heading{margin-bottom:14px}}
+
+/* VER3 rev.7 — 이미 개인 비밀번호가 설정된 직원의 초기화 버튼은 연하게 표시 */
+button.reset-subtle{background:#f2f6f7;color:#81949c;border:1px solid #e3eaed;font-weight:600}
+button.reset-subtle:hover{background:#e7eff1;color:#526c75;border-color:#cddce0}
+button.reset-subtle:focus-visible{outline:3px solid #8dd6d0;outline-offset:2px}
