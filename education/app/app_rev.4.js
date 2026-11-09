@@ -82,6 +82,11 @@ async function signupOrLogin(data){
  const session=await db.auth.getSession();
  const currentEmail=(session?.data?.user?.email||session?.data?.session?.user?.email||'').trim().toLowerCase();
  if(session?.data?.session&&currentEmail===data.email.toLowerCase())return;
+ // An existing session can belong to a previous login version after an admin reset.
+ if(session?.data?.session&&currentEmail&&currentEmail!==data.email.toLowerCase()){
+  const signedOut=await db.auth.signOut();
+  if(signedOut?.error)throw Error('이전 로그인 종료에 실패했어. 로그아웃 후 다시 진행해 줘.');
+ }
  const result=await db.auth.signUp.email(data);
  if(!result?.error)return;
  const message=String(result.error.message||'');
