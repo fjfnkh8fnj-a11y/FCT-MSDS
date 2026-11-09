@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#112b38">
   <meta name="description" content="FCT 교육관리 - 직원별 교육배정, 이수현황, 전자서명, 교육일지 및 백업">
-  <title>FCT 교육관리 VER3 rev.10</title>
+  <title>FCT 교육관리 VER3 rev.11</title>
   <link rel="stylesheet" href="./styles_rev.9.css?v=9">
   <style>[hidden]{display:none!important}</style>
 </head>
 <body>
   <header class="topbar">
-    <div class="topbrand"><span class="mark">FCT</span><div><b>교육관리</b><small>EDUCATION MANAGEMENT · VER3 rev.10</small></div></div>
+    <div class="topbrand"><span class="mark">FCT</span><div><b>교육관리</b><small>EDUCATION MANAGEMENT · VER3 rev.11</small></div></div>
     <div class="account" id="accountArea"><span class="chip">NEON CLOUD</span></div>
   </header>
   <div class="loading" id="loading">교육관리 서버 연결 중...</div>
@@ -27,7 +27,7 @@
         <label>사번 또는 관리자 이메일<input id="loginId" autocomplete="username" required placeholder="직원은 사번 / 관리자는 이메일"></label>
         <label>비밀번호<input id="loginPw" type="password" autocomplete="current-password" required placeholder="비밀번호 입력"></label>
         <button class="primary" type="submit">로그인</button>
-        <p class="note">최초 접속 직원은 사내 안내받은 초기 비밀번호로 로그인하세요.</p>
+        <p class="note">최초 접속 직원은 사내에서 안내받은 초기 비밀번호로 로그인해 주세요.</p>
       </form>
       <form id="formRegister" class="stack" hidden>
         <p class="notice"><b>비밀번호를 변경해 주세요.</b> 초기 비밀번호는 다시 사용할 수 없습니다.</p>
@@ -61,6 +61,6 @@
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   <dialog id="dialog"><div id="dialogBody"></div><form method="dialog" class="modal-footer"><button class="secondary">닫기</button></form></dialog>
-  <script type="module" src="./app_rev.10.js?v=10"></script>
+  <script type="module" src="./app_rev.11.js?v=11"></script>
 </body>
 </html>
