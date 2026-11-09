@@ -48,6 +48,8 @@ async function registerStaff(){
  const no=$('registerId').value.trim(),pin=$('registerPin').value,invite=$('registerInvite').value.trim(),password=$('registerPw').value;
  if(pin!=='1111')throw Error('초기화 PIN이 다릅니다.');
  if(password.length<8)throw Error('로그인 비밀번호는 8자 이상으로 만들어 줘.');
+ const valid=check(await db.rpc('edu_invite_valid',{p_employee_no:no,p_invite_code:invite}));
+ if(!valid)throw Error('사번 또는 직원별 발급코드가 맞지 않아. 관리자에게 확인해 줘.');
  const version=check(await db.rpc('edu_login_version',{p_employee_no:no}));
  const email=('fctedu+'+no+'.v'+version+'@fct-education.example').toLowerCase();
  await signupOrLogin({email,password,name:'FCT '+no});
