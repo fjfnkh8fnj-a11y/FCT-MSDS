@@ -143,7 +143,7 @@ export async function employeeAction(button){
   let sign=canvas.toDataURL('image/png');
   if(sign.length>245000)throw Error('서명 이미지 용량이 너무 큽니다.');
   check(await db.rpc('edu_complete_course',{p_course_id:S.courseId,p_signature_data:sign,p_request_id:crypto.randomUUID()}));
-  await loadData();await openLesson(S.courseId);S.lesson=null;notice('교육 수료와 전자서명이 저장되었습니다. 수료한 교육에서 확인할 수 있습니다.');return 'history';
+  await loadData();S.lesson=null;notice('교육 수료와 전자서명이 저장되었습니다. 수료한 교육에서 확인할 수 있습니다.');return 'history';
  }
  return null;
 }
