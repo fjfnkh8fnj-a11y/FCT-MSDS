@@ -5,7 +5,7 @@ export const $=id=>document.getElementById(id);
 export const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function check(r){if(r&&r.error)throw Error(r.error.message||String(r.error));return r?.data;}
 export function notice(text,error=false){let el=$('toast');el.textContent=text;el.className='toast'+(error?' error':'');el.hidden=false;clearTimeout(notice.timeout);notice.timeout=setTimeout(()=>el.hidden=true,5500);}
-export function modal(title,content){$('dialogBody').innerHTML='<h2>'+esc(title)+'</h2>'+content;$('dialog').showModal();}
+export function modal(title,content){$('dialogBody').innerHTML='<h2>'+esc(title)+'</h2>'+content;if(!$('dialog').open)$('dialog').showModal();}
 export function badge(status){let v={draft:'작성중',published:'진행중',archived:'보관완료',assigned:'미수료',started:'수강중',completed:'수료'};return '<span class="pill '+(status==='completed'?'good':'')+'">'+esc(v[status]||status||'-')+'</span>';}
 export function date(value){return value?new Date(value).toLocaleDateString('ko-KR'):'-';}
 export function filename(name){return String(name||'교육').replace(/[\\/:*?"<>|]/g,'_').slice(0,40);}
