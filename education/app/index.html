@@ -5,19 +5,20 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#112b38">
   <meta name="description" content="FCT 교육관리 - 직원별 교육배정, 이수현황, 전자서명, 교육일지 및 백업">
-  <title>FCT 교육관리 VER3 rev.2</title>
-  <link rel="stylesheet" href="./styles_rev.1.css">
+  <title>FCT 교육관리 VER3 rev.3</title>
+  <link rel="stylesheet" href="./styles_rev.3.css">
+  <style>[hidden]{display:none!important}</style>
 </head>
 <body>
   <header class="topbar">
-    <div class="topbrand"><span class="mark">FCT</span><div><b>교육관리</b><small>EDUCATION MANAGEMENT · VER3 rev.2</small></div></div>
+    <div class="topbrand"><span class="mark">FCT</span><div><b>교육관리</b><small>EDUCATION MANAGEMENT · VER3 rev.3</small></div></div>
     <div class="account" id="accountArea"><span class="chip">NEON CLOUD</span></div>
   </header>
   <div class="loading" id="loading">교육관리 서버 연결 중...</div>
   <main class="auth-wrap" id="authArea" hidden>
     <section class="auth-card">
       <div class="auth-heading"><h1>FCT 교육관리</h1><p>1공장 · 2공장 직원 교육 이수 및 기록 관리</p></div>
-      <div class="auth-switch" role="tablist"><button class="active" id="tabLogin" type="button">직원 로그인</button><button id="tabRegister" type="button">최초 등록·비밀번호 초기화</button><button id="tabAdmin" type="button">관리자 최초 설정</button></div>
+      <div class="auth-switch" role="tablist" aria-label="접속 방식 선택"><button class="active" id="tabLogin" type="button" role="tab" aria-controls="formLogin" aria-selected="true">직원 로그인</button><button id="tabRegister" type="button" role="tab" aria-controls="formRegister" aria-selected="false">최초 등록·비밀번호 초기화</button><button id="tabAdmin" type="button" role="tab" aria-controls="formAdmin" aria-selected="false">관리자 최초 설정</button></div>
       <form id="formLogin" class="stack">
         <label>사번 또는 관리자 이메일<input id="loginId" autocomplete="username" required placeholder="사번 입력"></label>
         <label>비밀번호<input id="loginPw" type="password" autocomplete="current-password" required placeholder="본인이 설정한 비밀번호"></label>
@@ -48,6 +49,6 @@
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   <dialog id="dialog"><div id="dialogBody"></div><form method="dialog" class="modal-footer"><button class="secondary">닫기</button></form></dialog>
-  <script type="module" src="./app_rev.2.js"></script>
+  <script type="module" src="./app_rev.3.js"></script>
 </body>
 </html>
