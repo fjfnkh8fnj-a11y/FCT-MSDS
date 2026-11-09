@@ -5,36 +5,54 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#112b38">
   <meta name="description" content="FCT 교육관리 - 직원별 교육배정, 이수현황, 전자서명, 교육일지 및 백업">
-  <title>FCT 교육관리 VER3 rev.3</title>
-  <link rel="stylesheet" href="./styles_rev.3.css">
+  <title>FCT 교육관리 VER3 rev.4</title>
+  <link rel="stylesheet" href="./styles_rev.4.css">
   <style>[hidden]{display:none!important}</style>
 </head>
 <body>
   <header class="topbar">
-    <div class="topbrand"><span class="mark">FCT</span><div><b>교육관리</b><small>EDUCATION MANAGEMENT · VER3 rev.3</small></div></div>
+    <div class="topbrand"><span class="mark">FCT</span><div><b>교육관리</b><small>EDUCATION MANAGEMENT · VER3 rev.4</small></div></div>
     <div class="account" id="accountArea"><span class="chip">NEON CLOUD</span></div>
   </header>
   <div class="loading" id="loading">교육관리 서버 연결 중...</div>
   <main class="auth-wrap" id="authArea" hidden>
     <section class="auth-card">
       <div class="auth-heading"><h1>FCT 교육관리</h1><p>1공장 · 2공장 직원 교육 이수 및 기록 관리</p></div>
-      <div class="auth-switch" role="tablist" aria-label="접속 방식 선택"><button class="active" id="tabLogin" type="button" role="tab" aria-controls="formLogin" aria-selected="true">직원 로그인</button><button id="tabRegister" type="button" role="tab" aria-controls="formRegister" aria-selected="false">최초 등록·비밀번호 초기화</button><button id="tabAdmin" type="button" role="tab" aria-controls="formAdmin" aria-selected="false">관리자 최초 설정</button></div>
+      <div class="auth-switch" role="tablist" aria-label="접속 방식 선택">
+        <button class="active" id="tabLogin" type="button" role="tab" aria-controls="formLogin" aria-selected="true">직원·관리자 로그인</button>
+        <button id="tabForgot" type="button" role="tab" aria-controls="formForgot" aria-selected="false">비밀번호 찾기</button>
+        <button id="tabAdmin" type="button" role="tab" aria-controls="formAdmin" aria-selected="false">최초 관리자 등록</button>
+      </div>
       <form id="formLogin" class="stack">
-        <label>사번 또는 관리자 이메일<input id="loginId" autocomplete="username" required placeholder="사번 입력"></label>
-        <label>비밀번호<input id="loginPw" type="password" autocomplete="current-password" required placeholder="본인이 설정한 비밀번호"></label>
+        <label>사번 또는 관리자 이메일<input id="loginId" autocomplete="username" required placeholder="직원은 사번 / 관리자는 이메일"></label>
+        <label>비밀번호<input id="loginPw" type="password" autocomplete="current-password" required placeholder="최초 로그인은 1111"></label>
         <button class="primary" type="submit">로그인</button>
-        <p class="note">비밀번호를 잊었으면 관리자에게 초기화를 요청하세요.</p>
+        <p class="note">신규 직원·비밀번호 초기화 직원은 <b>1111</b>로 시작하고 새 비밀번호를 설정해 주세요.</p>
       </form>
       <form id="formRegister" class="stack" hidden>
-        <p class="notice">관리자가 직원 명부를 등록하면 사번별 발급코드를 전달받습니다. 초기화 PIN은 <b>1111</b>이며, 실제 로그인 비밀번호는 여기서 새로 설정합니다.</p>
-        <label>사번<input id="registerId" required placeholder="사번"></label>
-        <label>초기화 PIN<input id="registerPin" type="password" inputMode="numeric" required placeholder="1111"></label>
-        <label>직원별 1회 발급코드<input id="registerInvite" required placeholder="관리자에게 받은 발급코드"></label>
-        <label>새 비밀번호 (8자 이상)<input id="registerPw" type="password" minlength="8" required placeholder="직접 설정"></label>
-        <button class="primary" type="submit">계정 활성화</button>
+        <p class="notice"><b>비밀번호를 변경해 주세요.</b> 초기 비밀번호 1111은 계속 사용할 수 없습니다.</p>
+        <p>사번 <strong id="registerNumber"></strong></p>
+        <input id="registerId" type="hidden">
+        <label>새 비밀번호 (8자 이상)<input id="registerPw" type="password" minlength="8" autocomplete="new-password" required placeholder="새 비밀번호 입력"></label>
+        <label>새 비밀번호 확인<input id="registerPwConfirm" type="password" minlength="8" autocomplete="new-password" required placeholder="비밀번호 다시 입력"></label>
+        <button class="primary" type="submit">비밀번호 변경하기</button>
+        <button id="cancelActivation" type="button">이전 화면</button>
+        <p class="note">새 계정 연결은 관리자 본인확인 승인 후 완료됩니다. 직원별 발급코드는 필요 없습니다.</p>
+      </form>
+      <form id="formForgot" class="stack" hidden>
+        <p class="notice">비밀번호를 잊으셨나요? 사번만 입력하면 관리자에게 초기화 요청이 전달됩니다.</p>
+        <label>사번<input id="forgotId" required placeholder="본인 사번 입력"></label>
+        <button class="primary" type="submit">관리자에게 초기화 요청</button>
+        <p class="note">관리자가 초기화하면 다시 사번과 1111로 로그인해 새 비밀번호를 설정해 주세요.</p>
+      </form>
+      <form id="formPending" class="stack" hidden>
+        <p class="notice"><b>관리자 승인 대기</b></p>
+        <p>비밀번호가 등록됐어. 관리자가 본인확인 후 최초 로그인을 승인하면 교육관리에 들어갈 수 있어.</p>
+        <button id="checkApproval" class="primary" type="button">승인 상태 확인</button>
+        <button id="cancelPending" type="button">로그인 화면으로</button>
       </form>
       <form id="formAdmin" class="stack" hidden>
-        <p class="notice">최초 한 번만 설정합니다. 운영 관리자 이메일과 8자 이상 비밀번호를 직접 정하세요. 관리자 초기 설정 코드는 별도로 전달한 1회 코드입니다.</p>
+        <p class="notice">관리자 최초 등록은 운영 시작 시 한 번만 수행합니다. 이미 관리자 계정이 있다면 일반 로그인으로 접속하세요.</p>
         <label>관리자 성명<input id="adminName" required placeholder="관리자"></label>
         <label>관리자 이메일<input id="adminEmail" type="email" autocomplete="email" required placeholder="본인 이메일"></label>
         <label>관리자 로그인 비밀번호<input id="adminPw" type="password" minlength="8" required></label>
@@ -49,6 +67,6 @@
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   <dialog id="dialog"><div id="dialogBody"></div><form method="dialog" class="modal-footer"><button class="secondary">닫기</button></form></dialog>
-  <script type="module" src="./app_rev.3.js"></script>
+  <script type="module" src="./app_rev.4.js"></script>
 </body>
 </html>
