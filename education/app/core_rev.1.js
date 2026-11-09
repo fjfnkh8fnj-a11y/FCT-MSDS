@@ -1,5 +1,5 @@
 import {createClient} from 'https://esm.sh/@neondatabase/neon-js@0.9.0-beta?target=es2022';
-export const db=createClient({auth:{url:'https://ep-winter-bonus-azfs5ym3.neonauth.c-3.ap-southeast-1.aws.neon.tech/fct_edu_app/auth'},dataApi:{url:'https://ep-winter-bonus-azfs5ym3.apirest.c-3.ap-southeast-1.aws.neon.tech/fct_edu_app/rest/v1'}});
+export const db=createClient({auth:{url:'https://ep-winter-bonus-azfs5ym3.neonauth.c-3.ap-southeast-1.aws.neon.tech/fct_edu_app/auth',allowAnonymous:true},dataApi:{url:'https://ep-winter-bonus-azfs5ym3.apirest.c-3.ap-southeast-1.aws.neon.tech/fct_edu_app/rest/v1'}});
 export const S={me:null,page:'dashboard',staff:[],courses:[],enroll:[],attempts:[],courseId:null,lesson:null,answers:{},player:null,interval:null,playing:false,watchSaving:false,drawn:false,signCanvas:null};
 export const $=id=>document.getElementById(id);
 export const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
