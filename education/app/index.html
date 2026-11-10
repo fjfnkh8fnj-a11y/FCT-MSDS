@@ -3,22 +3,35 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#112b38">
+  <meta name="theme-color" content="#f2f5fb">
   <meta name="description" content="FCT 교육관리 - 직원별 교육배정, 이수현황, 전자서명, 교육일지 및 백업">
-  <title>FCT 교육관리 VER3 rev.20</title>
+  <title>FCT 교육관리 rev.21</title>
   <link rel="stylesheet" href="./styles_rev.9.css?v=9">
   <link rel="stylesheet" href="./workspace_rev.17.css">
+  <link rel="stylesheet" href="./branding_rev.21.css">
   <style>[hidden]{display:none!important}.lesson-videos{padding-inline-start:1.65rem}.lesson-videos .course-card{display:list-item}.due-urgent{background:#fee6e6;color:#a22828}#lesson-quiz,#lesson-sign{scroll-margin-top:125px}.lesson-passed{background:#e6f8ef;color:#13563f;border-color:#b2dac8;font-size:14px}</style>
 </head>
 <body>
   <header class="topbar">
-    <div class="topbrand"><span class="mark">FCT</span><div><b>교육관리</b><small>EDUCATION MANAGEMENT · VER3 rev.20</small></div></div>
-    <div class="account" id="accountArea"><span class="chip">NEON CLOUD</span></div>
+    <div class="topbrand">
+      <img class="topbrand-logo" src="../../fct-logo-header-ver12.png" width="742" height="145" alt="FCT (주)화인세라텍">
+      <b class="brand-label">교육관리</b>
+    </div>
+    <div class="account" id="accountArea"></div>
   </header>
   <div class="loading" id="loading">교육관리 서버 연결 중...</div>
   <main class="auth-wrap" id="authArea" hidden>
-    <section class="auth-card">
-      <div class="auth-heading"><h1>FCT 교육관리</h1><p>1공장 · 2공장 직원 교육 이수 및 기록 관리</p></div>
+    <div class="auth-layout">
+      <section class="auth-hero" aria-labelledby="authHeroTitle">
+        <img src="./safety-training-hero_rev.21.jpg" width="1280" height="720" alt="" fetchpriority="high">
+        <div class="auth-hero-copy">
+          <span>1공장 · 2공장</span>
+          <h2 id="authHeroTitle">FCT 안전교육</h2>
+          <p>배정된 교육을 수강하고 이수 기록을 확인하세요.</p>
+        </div>
+      </section>
+      <section class="auth-card">
+      <div class="auth-heading"><h1>교육관리 로그인</h1><p>사번 또는 관리자 이메일로 접속하세요.</p></div>
       <div class="auth-switch" role="tablist" aria-label="접속 방식 선택">
         <button class="active" id="tabLogin" type="button" role="tab" aria-controls="formLogin" aria-selected="true">직원·관리자 로그인</button>
         <button id="tabForgot" type="button" role="tab" aria-controls="formForgot" aria-selected="false">비밀번호 찾기</button>
@@ -53,7 +66,8 @@
         <button class="primary" type="submit">비밀번호 변경하고 로그인</button>
         <button id="cancelAdminPassword" type="button">이전 화면</button>
       </form>
-    </section>
+      </section>
+    </div>
   </main>
   <div id="workspace" class="workspace" hidden>
     <aside id="nav" class="nav"></aside>
@@ -61,6 +75,6 @@
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   <dialog id="dialog"><div id="dialogBody"></div><form method="dialog" class="modal-footer"><button class="secondary">닫기</button></form></dialog>
-  <script type="module" src="./app_rev.20.js?v=20"></script>
+  <script type="module" src="./app_rev.21.js?v=21"></script>
 </body>
 </html>

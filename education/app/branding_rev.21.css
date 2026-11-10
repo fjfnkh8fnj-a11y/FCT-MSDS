@@ -1,0 +1,80 @@
+:root{
+ --nav:#fff;--teal:#254da2;--teal2:#203f83;--ink:#172848;--muted:#526580;
+ --line:#dbe3f0;--bg:#f2f5fb;
+}
+body{background:var(--bg)}
+button.primary{background:#254da2}
+button.outline{border-color:#bacbe6;color:#203f83}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid #668bdd;outline-offset:2px}
+.topbar{background:#fff;color:var(--ink);border-bottom:1px solid var(--line);box-shadow:0 2px 12px #182d5a09}
+.topbrand{gap:16px;min-width:0}
+.topbrand-logo{width:178px;height:auto;display:block}
+.topbrand .brand-label{border-left:1px solid #d6dfef;padding-left:15px;font-size:15px;white-space:nowrap;color:#203668}
+.account{min-width:0;gap:8px}
+.account-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:20ch}
+.account button{background:#eef3fc;color:#254077}
+.loading{color:var(--muted)}
+
+.auth-wrap{padding:clamp(24px,6vh,72px) 24px;display:grid;align-items:center}
+.auth-layout{
+ display:grid;grid-template-columns:minmax(0,1.25fr) minmax(350px,1fr);
+ width:min(1080px,100%);margin:0 auto;border-radius:24px;overflow:hidden;
+ background:#fff;border:1px solid var(--line);box-shadow:0 18px 55px #18305f1b;
+}
+.auth-hero{position:relative;min-height:490px;display:flex;align-items:end;isolation:isolate;background:#172d5a}
+.auth-hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:67% center;z-index:-2}
+.auth-hero::before{content:"";position:absolute;inset:0;background:linear-gradient(0deg,#0a1d40f7,#11284e84 34%,#11284e10 72%);z-index:-1}
+.auth-hero-copy{padding:36px 34px;color:#fff}
+.auth-hero-copy span{font-size:12px;letter-spacing:.08em;color:#dbe7ff;font-weight:750}
+.auth-hero-copy h2{font-size:clamp(30px,4vw,46px);letter-spacing:-.055em;line-height:1.15;margin:10px 0}
+.auth-hero-copy p{margin:0;color:#edf3ff;font-size:14px}
+.auth-card{width:100%;margin:0;align-self:center;padding:clamp(28px,4.5vw,48px);box-shadow:none;border:0;border-radius:0}
+.auth-heading{text-align:left;margin-bottom:23px}
+.auth-heading h1{font-size:29px}
+.auth-heading p{margin:0}
+.auth-switch{background:#eef3fc}
+.auth-switch button.active{color:#193c86}
+.auth-card input{padding:12px 13px;border-color:#c9d5e9}
+.auth-card button.primary{min-height:45px}
+
+.nav{background:#f9fbff;color:var(--muted);border-right:1px solid var(--line)}
+.nav button{color:#405877;border-radius:10px}
+.nav button.active,.nav button:hover{background:#e4edfc;color:#1f438e}
+.nav-info,.nav .nav-info{border-color:var(--line);color:#526580;line-height:1.6}
+.box,.kpi,.course-card{border-color:var(--line)}
+.box{box-shadow:0 5px 16px #19346309}
+.kpi b{color:#203f83}
+.kpi span{color:var(--muted)}
+.new-course summary{color:#234b9e}
+.home-view>.pagehead{
+ min-height:188px;padding:28px 32px;align-items:end;border-radius:18px;
+ background:#172d5a linear-gradient(90deg,#132a58f7 0%,#172e5bd9 38%,#172e5b22 100%);
+ background-image:linear-gradient(90deg,#132a58f7 0%,#172e5bd9 38%,#172e5b22 100%),url("./safety-training-hero_rev.21.jpg");
+ background-size:cover;background-position:center,center 31%;color:#fff;
+}
+.home-view>.pagehead h1{font-size:clamp(25px,3vw,35px)}
+.home-view>.pagehead p{color:#eff4ff}
+@media(max-width:650px){
+ .topbar{padding:0 12px}
+ .topbrand-logo{width:clamp(105px,34vw,142px)}
+ .topbrand .brand-label{display:none}
+ .account{gap:5px;font-size:11px}
+ .account-name{max-width:9ch}
+ .account button{padding-inline:6px}
+ .nav{border-right:0;border-bottom:1px solid var(--line)}
+ .auth-wrap{min-height:auto;padding:17px 12px 28px}
+ .auth-layout{display:block;border-radius:17px}
+ .auth-hero{min-height:166px}
+ .auth-hero img{object-position:65% 32%}
+ .auth-hero::before{background:linear-gradient(90deg,#10274be8,#10274b64 83%)}
+ .auth-hero-copy{padding:18px}
+ .auth-hero-copy h2{font-size:27px;margin:4px 0}
+ .auth-hero-copy p{font-size:12px}
+ .auth-card{padding:21px 18px}
+ .auth-heading{margin-bottom:17px}
+ .auth-heading h1{font-size:23px}
+ .auth-switch button{font-size:12px}
+ .home-view>.pagehead{min-height:143px;padding:19px 17px;background-position:center,65% center}
+ .home-view>.pagehead p{font-size:13px}
+}
+
