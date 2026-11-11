@@ -2227,7 +2227,7 @@
           if (linkedEquipmentIds.has(u.equipment_id)) continue;
           await api("/rest/v1/document_locations", {
             method: "POST",
-            body: JSON.stringify([{document_id:doc.id,factory_id:u.factory_id,department_id:u.department_id,equipment_id:u.equipment_id,process_id:u.process_id}]),
+            body: JSON.stringify([{document_id:doc.id,factory_id:u.factory_id,department_id:u.department_id,equipment_id:u.equipment_id,process_id:u.process_id || null}]),
           });
           linkedEquipmentIds.add(u.equipment_id);
         }
@@ -2481,7 +2481,7 @@
         if (linkedEquipmentIds.has(l.equipment_id)) continue;
         await api("/rest/v1/document_locations", {
           method: "POST",
-          body: JSON.stringify([{document_id:d.id,factory_id:l.factory_id,department_id:l.department_id,equipment_id:l.equipment_id,process_id:l.process_id}]),
+          body: JSON.stringify([{document_id:d.id,factory_id:l.factory_id,department_id:l.department_id,equipment_id:l.equipment_id,process_id:l.process_id || null}]),
         });
         linkedEquipmentIds.add(l.equipment_id);
       }
