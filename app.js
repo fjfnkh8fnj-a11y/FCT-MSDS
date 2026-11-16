@@ -1050,12 +1050,32 @@
     const c=item.component;
     return '<section class="reg-component"><div class="reg-component-heading"><div><b>'+esc(c.name || '성분명 확인 필요')+'</b><small>CAS '+esc(c.cas || '-')+' · 함량 '+esc(c.content || '미입력')+'</small></div>'+regulatoryEditButton(doc,item.index,item.outcome.review)+'</div>'+componentCriteriaHtml({...c,id:undefined},doc)+'</section>';
   }
+  function hasBothRegulations(product) {
+    return Boolean(product.groups.dangerous.length && product.groups.chemical.length);
+  }
+  function combinedLawHtml(product, open) {
+    const rows=product.components.flatMap(item=>item.applied
+      .filter(d=>d.group==='chemical')
+      .map(d=>({decision:d, component:item.component})));
+    const detail=rows.map(({decision:d,component:c})=>{
+      const quantities=(d.regulated_quantities || []).map(q=>{
+        const parts=[['최하위',q.lowest_tons],['하위',q.lower_tons],['상위',q.upper_tons]]
+          .map(([label,v])=>label+' '+(v==null||v===''||v==='-'?'–':String(v)+'t'));
+        return '<small>'+esc([q.physical_state,parts.join(' / ')].filter(Boolean).join(' · '))+'</small>';
+      }).join('');
+      return '<li><b>'+esc(d.label)+'</b><span>'+esc(c.name || '성분명 확인 필요')+' · 함량 '+esc(c.content || '미입력')+'</span>'+(quantities || '<small>등록된 규정수량 정보 없음</small>')+'</li>';
+    }).join('');
+    const summaryLabels=[...new Set(rows.map(({decision:d,component:c})=>d.label+(c.name?' · '+c.name:'')))];
+    const summary=(summaryLabels.length?summaryLabels:product.groups.chemical).join(' / ');
+    return '<div class="reg-both-laws"><section><b>위험물안전관리법</b><ul>'+product.groups.dangerous.map(v=>'<li>'+esc(v)+'</li>').join('')+'</ul>'+(product.doc.regulations?.dangerous_review_reasons?.length?'<small>원문 분류 기준 지정수량 · 분류 확인 필요</small>':'')+'</section><section><b>화학물질관리법</b>'+(open&&detail?'<ul>'+detail+'</ul>':'<span>'+esc(summary)+'</span>')+'</section></div>';
+  }
   function regulatoryProductHtml(product,focus=null) {
     const {doc,groups,components,review,status}=product;
     const labels=[...new Set([...groups.chemical,...groups.osh,...(groups.dangerous.length?['위험물']:[])])];
     const why=[...product.missing,...(doc.regulations?.dangerous_review_reasons || []),...(dangerousLaw?.dangerousReviewReasons(doc.regulations?.dangerous || []) || []),...components.filter(c=>c.outcome.review).map(c=>c.component.name+' · '+(c.outcome.validations.filter(v=>v.unresolved).map(v=>v.message).join(' · ') || '성분·함량 또는 적용조건 확인 필요')),...(doc.regulations?.pending_revision?['새 PDF 변경 확인 필요']:[])];
-    const open=state.regExpanded===doc.id;
-    return '<article class="reg-product '+(review?'needs-review':'')+'"><div class="reg-product-head"><div><b>'+esc(doc.material_name)+'</b><small>성분 '+components.length+'개</small></div><div class="reg-product-result">'+regulationBadge(status)+' '+esc(labels.join(' · '))+(review?'<small>'+regulationBadge('review')+' '+esc([...new Set(why)].join(' · '))+'</small>':'')+(groups.dangerous.length?'<div class="reg-danger-summary">'+esc(groups.dangerous.join(' · '))+(doc.regulations?.dangerous_review_reasons?.length?'<small>원문 분류 기준 지정수량 · 분류 확인 필요</small>':'')+'</div>':'')+'</div><div class="reg-product-actions">'+regulatoryPdfButton(doc)+'<button type="button" class="btn btn-outline btn-small" data-reg-product="'+esc(doc.id)+'" aria-expanded="'+open+'">'+(open?'접기':'상세')+'</button>'+regulatoryEditButton(doc,review?components.find(c=>c.outcome.review)?.index ?? null:null,review)+'</div></div>'+regulatoryFactoryHtml(doc)+(focus?'<div class="reg-focus-component">'+regulatoryComponentHtml(focus,doc)+'</div>':'')+(open?'<div class="reg-product-details">'+components.map(c=>regulatoryComponentHtml(c,doc)).join('')+(groups.dangerous.length?'<div class="reg-danger-summary"><b>제품 위험물 분류</b><div>'+esc(groups.dangerous.join(' · '))+'</div><small>등록된 MSDS 제15항 · 위험물안전관리법 시행령 별표 1 대조</small></div>':'')+'</div>':'')+'</article>';
+    const open=state.regExpanded===doc.id,combined=state.regGroup==='both';
+    const result=esc((combined?['위험물 + 유해화학물질']:labels).join(' · '));
+    return '<article class="reg-product '+(review?'needs-review':'')+'"><div class="reg-product-head"><div><b>'+esc(doc.material_name)+'</b><small>성분 '+components.length+'개</small></div><div class="reg-product-result">'+regulationBadge(status)+' '+result+(review?'<small>'+regulationBadge('review')+' '+esc([...new Set(why)].join(' · '))+'</small>':'')+(groups.dangerous.length&&!combined?'<div class="reg-danger-summary">'+esc(groups.dangerous.join(' · '))+(doc.regulations?.dangerous_review_reasons?.length?'<small>원문 분류 기준 지정수량 · 분류 확인 필요</small>':'')+'</div>':'')+'</div><div class="reg-product-actions">'+regulatoryPdfButton(doc)+'<button type="button" class="btn btn-outline btn-small" data-reg-product="'+esc(doc.id)+'" aria-expanded="'+open+'">'+(open?'접기':'상세')+'</button>'+regulatoryEditButton(doc,review?components.find(c=>c.outcome.review)?.index ?? null:null,review)+'</div></div>'+(combined?combinedLawHtml(product,open):'')+regulatoryFactoryHtml(doc)+(focus?'<div class="reg-focus-component">'+regulatoryComponentHtml(focus,doc)+'</div>':'')+(open?'<div class="reg-product-details">'+components.map(c=>regulatoryComponentHtml(c,doc)).join('')+(groups.dangerous.length&&!combined?'<div class="reg-danger-summary"><b>제품 위험물 분류</b><div>'+esc(groups.dangerous.join(' · '))+'</div><small>등록된 MSDS 제15항 · 위험물안전관리법 시행령 별표 1 대조</small></div>':'')+'</div>':'')+'</article>';
   }
   function regulatoryFactoryHtml(doc) {
     const fids=[...new Set((doc.locations || []).map(l=>l.factory_id))];
@@ -1121,13 +1141,13 @@
     const box=$('regDashboard');if(!box)return;
     const picker=$('regFactoryPicker');
     if(picker)picker.innerHTML=[{id:'',name:'전체'},...state.factories].map(f=>'<button type="button" class="btn '+(state.regFactory===f.id?'btn-blue':'btn-outline')+'" data-reg-factory="'+esc(f.id)+'" aria-pressed="'+(state.regFactory===f.id)+'">'+esc(f.name)+'</button>').join('');
-    const model=regulationModel(),groups=[['chemical','화관법'],['osh','산안법'],['dangerous','위험물'],['review','확인 필요']];
+    const model=regulationModel(),groups=[['chemical','화관법'],['osh','산안법'],['dangerous','위험물'],['both','위험물 + 유해화학물질'],['review','확인 필요']];
     $('regBackBtn').classList.add('hidden');
     $('regFactorySummary').textContent=(factory(state.regFactory)?.name || '전체 공장')+' · 제품 '+model.products.length+'개 · PDF·성분정보 공통 / 사용처·수량·비고 공장별 관리';
     $('regBreadcrumb').textContent=state.regGroup?(groups.find(([key])=>key===state.regGroup)?.[1] || '')+' · '+(state.regView==='ingredients'?'성분별':state.regView==='classifications'?'분류별':'제품별'):'전체 법적 규제현황';
     $('regReviewSummary').textContent='확인 필요 '+model.counts.review.products+'개 제품';
-    box.innerHTML=groups.map(([key,label])=>{const n=model.counts[key],isProduct=key==='dangerous'||key==='review';return '<button type="button" class="reg-group reg-group-'+key+' '+(state.regGroup===key?'selected':'')+'" data-reg-category="'+key+'" aria-pressed="'+(state.regGroup===key)+'"><span>'+label+'</span><strong>'+(isProduct?n.products+'개 제품':n.ingredients+'개 성분')+'</strong><small>'+(isProduct?(key==='dangerous'?'류·품명·지정수량':'성분·함량·적용조건 확인'):'사용 제품 '+n.products+'개')+'</small></button>';}).join('');
-    document.querySelectorAll('[data-reg-view]').forEach(b=>b.classList.toggle('active',b.dataset.regView===state.regView));
+    box.innerHTML=groups.map(([key,label])=>{const n=key==='both'?{products:model.products.filter(hasBothRegulations).length}:model.counts[key],isProduct=['dangerous','review','both'].includes(key);return '<button type="button" class="reg-group reg-group-'+key+' '+(state.regGroup===key?'selected':'')+'" data-reg-category="'+key+'" aria-pressed="'+(state.regGroup===key)+'"><span>'+label+'</span><strong>'+(isProduct?n.products+'개 제품':n.ingredients+'개 성분')+'</strong><small>'+(isProduct?(key==='dangerous'?'류·품명·지정수량':key==='both'?'두 분류에 모두 해당':'성분·함량·적용조건 확인'):'사용 제품 '+n.products+'개')+'</small></button>';}).join('');
+    document.querySelectorAll('[data-reg-view]').forEach(b=>{b.classList.toggle('active',b.dataset.regView===state.regView);b.disabled=state.regGroup==='both'&&b.dataset.regView!=='products';});
     renderIngredientDashboard(model);
   }
   function renderIngredientDashboard(model=null) {
@@ -1135,7 +1155,7 @@
     model=model || regulationModel();
     const target=$('ingredientDashboard');if(!target)return;
     const q=norm($('regSearchInput').value),status=$('regStatusFilter').value,group=state.regGroup;
-    const matchProduct=p=>(!q||norm([p.doc.material_name,...p.components.flatMap(c=>[c.component.name,c.component.cas])].join(' ')).includes(q))&&(!status||(status==='review'?p.review:p.status===status))&&(!group||(group==='review'?p.review:p.groups[group].length));
+    const matchProduct=p=>(!q||norm([p.doc.material_name,...p.components.flatMap(c=>[c.component.name,c.component.cas])].join(' ')).includes(q))&&(!status||(status==='review'?p.review:p.status===status))&&(!group||(group==='review'?p.review:group==='both'?hasBothRegulations(p):p.groups[group].length));
     let html,count;
     if(state.regView==='classifications') {
       const rows=regulatoryModule.classificationGroups(model).filter(g=>(!group||group==='review'||group===g.kind)&&g.products.some(matchProduct));
@@ -3838,7 +3858,7 @@
     const factoryEdit=e.target.closest('[data-factory-edit]');
     if(factoryEdit){openFactoryInfo(factoryEdit.dataset.factoryEdit,factoryEdit.dataset.factoryId);return;}
     const category=e.target.closest('[data-reg-category]');
-    if(category){state.regGroup=state.regGroup===category.dataset.regCategory?'':category.dataset.regCategory;if(state.regView!=='classifications')state.regView=['chemical','osh'].includes(state.regGroup)?'ingredients':'products';state.regExpanded='';state.regIngredient='';renderRegulatoryDashboard();return;}
+    if(category){state.regGroup=state.regGroup===category.dataset.regCategory?'':category.dataset.regCategory;if(state.regGroup==='both'||state.regView!=='classifications')state.regView=['chemical','osh'].includes(state.regGroup)?'ingredients':'products';state.regExpanded='';state.regIngredient='';renderRegulatoryDashboard();return;}
     const regView=e.target.closest('[data-reg-view]');
     if(regView){state.regView=regView.dataset.regView;state.regExpanded='';state.regIngredient='';renderRegulatoryDashboard();return;}
     const classification=e.target.closest('[data-reg-classification]');
