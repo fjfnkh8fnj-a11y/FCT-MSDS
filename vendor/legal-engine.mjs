@@ -50,7 +50,16 @@ const compoundRules = Object.entries(compoundGroups).map(([cas, family]) => ({
   source_url:'https://www.law.go.kr/LSW/flDownload.do?bylClsCd=110201&flSeq=154464361&gubun=',
   mapping_basis:family, verified_on:'2026-10-01',
 }));
-export const DEFAULT_RULES = [...CATALOG.rules, ...compoundRules];
+// 별표 12 제1호 123)·124): 히드라진과 수화물은 혼합물 중량비율 0.1% 이상.
+const hydrazineRules = ['302-01-2','7803-57-8'].flatMap(cas =>
+  ['관리대상 유해물질','특별관리물질'].map(label => ({
+    ...rule(cas,'osh',label,0.1,SOURCE.osh,'별표 12 제1호 123)·124): 히드라진 및 그 수화물 · 혼합물 중량비율 0.1% 이상'),
+    source_url:'https://www.law.go.kr/LSW/flDownload.do?bylClsCd=110201&flSeq=154464361&gubun=',
+    mapping_basis:'히드라진 및 그 수화물', verified_on:'2026-11-17',
+  })));
+export const DEFAULT_RULES = [...CATALOG.rules.filter(r => !hydrazineRules.some(h =>
+  r.cas === h.cas && r.group === h.group && r.label === h.label && r.effective_date <= h.effective_date
+)), ...compoundRules, ...hydrazineRules];
 export const LEGAL_SOURCES = CATALOG.sources;
 export const todayKorea = () => new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 

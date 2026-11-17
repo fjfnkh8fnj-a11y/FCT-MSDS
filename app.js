@@ -4217,10 +4217,10 @@
   $("homeLogo").addEventListener("click", goHome);
   async function init() {
     try {
-      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.28');
+      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.39');
       regulationDisplay = await import('./vendor/regulation-display.mjs?v=VER13_rev.28');
       dangerousLaw=await import('./vendor/dangerous-quantity.mjs?v=VER13_rev.35');
-      regulatoryModule=await import('./vendor/regulatory-model.mjs?v=VER13_rev.38');
+      regulatoryModule=await import('./vendor/regulatory-model.mjs?v=VER13_rev.39');
       factoryScope=await import('./vendor/factory-scope.mjs?v=VER13_rev.34');
       refreshLegalRules();
     } catch (error) { console.error('법적기준 모듈 로드 실패', error); }
