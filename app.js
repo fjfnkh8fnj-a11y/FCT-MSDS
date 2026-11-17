@@ -1159,11 +1159,11 @@
     let html,count;
     if(state.regView==='classifications') {
       const rows=regulatoryModule.classificationGroups(model).filter(g=>(!group||group==='review'||group===g.kind)&&g.products.some(matchProduct));
-      count=rows.length+'개 분류 · 위험물 지정수량 / 화관법 규정수량';
+      count=rows.length+'개 분류'+(group==='osh'?' · 산안법 적용 항목':'');
       html=rows.map(g=>{
         const products=g.products.filter(matchProduct),open=state.regClassification===g.key;
         const ingredients=g.ingredients.filter(r=>r.entries.some(e=>products.some(p=>p.doc.id===e.doc.id)));
-        return '<article class="reg-product"><div class="reg-product-head"><div><button class="reg-name-button" type="button" data-reg-classification="'+esc(g.key)+'" aria-expanded="'+open+'">'+esc(g.title)+'</button><small>'+ (g.kind==='dangerous'?'위험물':'화관법')+'</small></div><div>'+ (g.kind==='chemical'?ingredients.length+'개 성분 · ':'')+products.length+'개 제품</div><div><button class="btn btn-outline btn-small" type="button" data-reg-classification="'+esc(g.key)+'">'+(open?'접기':'목록·PDF 보기')+'</button></div></div>'+(open?'<div class="reg-ingredient-products">'+(g.kind==='chemical'?ingredients.map(r=>regulatoryIngredientHtml({...r,entries:r.entries.filter(e=>products.some(p=>p.doc.id===e.doc.id)),products:r.products.filter(id=>products.some(p=>p.doc.id===id))},model)).join(''):products.map(p=>regulatoryProductHtml(p)).join(''))+'</div>':'')+'</article>';
+        return '<article class="reg-product"><div class="reg-product-head"><div><button class="reg-name-button" type="button" data-reg-classification="'+esc(g.key)+'" aria-expanded="'+open+'">'+esc(g.title)+'</button><small>'+ ({dangerous:'위험물',chemical:'화관법',osh:'산안법'}[g.kind])+'</small></div><div>'+ (g.kind==='chemical'?ingredients.length+'개 성분 · ':'')+products.length+'개 제품</div><div><button class="btn btn-outline btn-small" type="button" data-reg-classification="'+esc(g.key)+'">'+(open?'접기':'목록·PDF 보기')+'</button></div></div>'+(open?'<div class="reg-ingredient-products">'+(g.kind==='chemical'?ingredients.map(r=>regulatoryIngredientHtml({...r,entries:r.entries.filter(e=>products.some(p=>p.doc.id===e.doc.id)),products:r.products.filter(id=>products.some(p=>p.doc.id===id))},model)).join(''):products.map(p=>regulatoryProductHtml(p)).join(''))+'</div>':'')+'</article>';
       }).join('');
     } else if(state.regView==='products') {
       const rows=model.products.filter(matchProduct).sort((a,b)=>a.doc.material_name.localeCompare(b.doc.material_name,'ko'));
@@ -3858,7 +3858,7 @@
     const factoryEdit=e.target.closest('[data-factory-edit]');
     if(factoryEdit){openFactoryInfo(factoryEdit.dataset.factoryEdit,factoryEdit.dataset.factoryId);return;}
     const category=e.target.closest('[data-reg-category]');
-    if(category){state.regGroup=state.regGroup===category.dataset.regCategory?'':category.dataset.regCategory;if(state.regGroup==='both'||state.regView!=='classifications')state.regView=['chemical','osh'].includes(state.regGroup)?'ingredients':'products';state.regExpanded='';state.regIngredient='';renderRegulatoryDashboard();return;}
+    if(category){state.regGroup=state.regGroup===category.dataset.regCategory?'':category.dataset.regCategory;if(state.regGroup==='osh')state.regView='classifications';else if(state.regGroup==='both'||state.regView!=='classifications')state.regView=state.regGroup==='chemical'?'ingredients':'products';state.regExpanded='';state.regIngredient='';state.regClassification='';renderRegulatoryDashboard();return;}
     const regView=e.target.closest('[data-reg-view]');
     if(regView){state.regView=regView.dataset.regView;state.regExpanded='';state.regIngredient='';renderRegulatoryDashboard();return;}
     const classification=e.target.closest('[data-reg-classification]');
@@ -4220,7 +4220,7 @@
       legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.28');
       regulationDisplay = await import('./vendor/regulation-display.mjs?v=VER13_rev.28');
       dangerousLaw=await import('./vendor/dangerous-quantity.mjs?v=VER13_rev.35');
-      regulatoryModule=await import('./vendor/regulatory-model.mjs?v=VER13_rev.35');
+      regulatoryModule=await import('./vendor/regulatory-model.mjs?v=VER13_rev.38');
       factoryScope=await import('./vendor/factory-scope.mjs?v=VER13_rev.34');
       refreshLegalRules();
     } catch (error) { console.error('법적기준 모듈 로드 실패', error); }

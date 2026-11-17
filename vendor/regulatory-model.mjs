@@ -33,7 +33,10 @@ export function classificationGroups(model) {
     const g=groups.get(key);g.products.set(product.doc.id,product);
     if(ingredient)g.ingredients.set(ingredient.key,ingredient);
   };
-  for(const product of model.products)for(const title of product.groups.dangerous)add('dangerous:'+title,title,'dangerous',product);
+  for(const product of model.products) {
+    for(const title of product.groups.dangerous)add('dangerous:'+title,title,'dangerous',product);
+    for(const title of product.groups.osh)add('osh:'+title,title,'osh',product);
+  }
   for(const ingredient of model.ingredients)for(const entry of ingredient.entries)for(const decision of entry.applied.filter(d=>d.group==='chemical')) {
     if(decision.label!=='사고대비물질'&&entry.applied.some(d=>d.label==='사고대비물질'))continue;
     const quantities=decision.regulated_quantities || [];
