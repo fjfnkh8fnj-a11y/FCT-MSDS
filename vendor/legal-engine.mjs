@@ -108,6 +108,18 @@ function rulesByCas(rules, on) {
   indexedRuleCache.set(rules, {on, index});
   return index;
 }
+export function sulfuricPhStatus(ph) {
+  if (ph === null || ph === undefined || String(ph).trim() === '') return 'review';
+  const text=String(ph).trim().replace(/[〈＜]/g,'<').replace(/[〉＞]/g,'>');
+  const range=text.match(/^(\d+(?:\.\d+)?)\s*(?:~|～|–|−|-)\s*(\d+(?:\.\d+)?)$/);
+  if(range) return Number(range[2])<=2?'applicable':Number(range[1])>2?'not-applicable':'review';
+  const bound=text.match(/^([<≤>≥]=?)?\s*(\d+(?:\.\d+)?)$/);
+  if(!bound)return 'review';
+  const [,operator='',value]=bound,n=Number(value);
+  if(operator.startsWith('<') || operator==='≤')return n<=2?'applicable':'review';
+  if(operator.startsWith('>') || operator==='≥')return n>2 || operator==='>'&&n===2?'not-applicable':'review';
+  return n<=2?'applicable':'not-applicable';
+}
 export function assess(components, rules, { on = todayKorea(), physicalState = '', ph = null } = {}) {
   const index = rulesByCas(rules, on), decisions = [], validations=[];
   for (const [componentIndex,component] of (components || []).entries()) {
@@ -115,7 +127,7 @@ export function assess(components, rules, { on = todayKorea(), physicalState = '
     const current=applicableRules.map(criterion=>{
       let status=compare(range,Number(criterion.threshold));
       if(status==='review' && range)status='applicable';
-      if(criterion.detail?.includes('pH 2.0') && status==='applicable' && !(ph!==null && Number(ph)<=2))status='review';
+      if(criterion.detail?.includes('pH 2.0') && status==='applicable')status=sulfuricPhStatus(ph);
       return {...criterion,status,componentIndex,content:component.content || '',component_name:component.name || ''};
     });
     decisions.push(...current);

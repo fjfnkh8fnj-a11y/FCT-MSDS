@@ -524,6 +524,12 @@ export function findRegulations(data) {
   return { chemical: [...new Set(chemical)], osh: [...new Set(osh)], ...completeDangerousFromMsds(dangerous,data.pages.flatMap(page=>page.lines.map(line=>line.text)).join('\n')) };
 }
 
+export function parsePh(text) {
+  // Only the physical-properties section contains the product pH.
+  const section = String(text || '').match(/(?:9\s*[.．]\s*물리[\s\S]*?)(?=10\s*[.．]\s*안정|$)/)?.[0] || '';
+  const value = section.match(/\bpH\s*[:：]?\s*((?:[<≤>≥〈〉＜＞]\s*)?\d+(?:\.\d+)?(?:\s*(?:~|～|–|−|-)\s*\d+(?:\.\d+)?)?)/i)?.[1];
+  return value ? value.replace(/[〈＜]/g,'<').replace(/[〉＞]/g,'>').replace(/\s+/g,'') : null;
+}
 export function parseMsds(data) {
   const components = normalizeComponents(findComponents(data));
   const noListedComponents = /유해한\s*성분\s*없음|분류기준에\s*해당하는\s*화학물질을\s*포함하지\s*않음/i.test(data.text);
@@ -538,6 +544,7 @@ export function parseMsds(data) {
     productName: findProductName(data) || (components.length === 1 ? components[0].name : ""),
     physicalState: data.text.match(/(?:물리적\s*상태|성상)\s*[:：]?\s*(액체|고체|기체)/i)?.[1] || '',
     components,
+    ph: parsePh(data.text),
     regulations: findRegulations(data),
     noListedComponents,
     reviewRequired,
