@@ -1912,7 +1912,7 @@
     }
     await import("./vendor/pdf-compat.mjs?v=VER13_rev.28");
       const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.28");
-    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.40");
+    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.41");
     pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.compat.mjs?v=VER13_rev.28";
     let pdf;
     try {
@@ -1991,7 +1991,7 @@
       }
       const comps = pdfData.parsed.components.map((item, i) => {
         const prior = state.draftComponents.find(c => c.cas && c.cas === item.cas) || state.draftComponents[i] || {};
-        return { id: uid('component'), name:item.name || prior.name || '', content:item.content || prior.content || '', cas:item.cas || prior.cas || '' };
+        return { id: uid('component'), regulation_evidence:item.regulation_evidence || {}, name:item.name || prior.name || '', content:item.content || prior.content || '', cas:item.cas || prior.cas || '' };
       }); if (comps.length) { state.draftComponents = comps; renderComponentRows(); }
       const parsedProduct = pdfData.parsed.productName || "";
       const filenameProduct = file.name.replace(/\.pdf$/i, "").replace(/^(msds|sds)[\s_\-]*/i, "").trim();
@@ -2111,8 +2111,9 @@
       file = state.files[0] || null,
       components = state.draftComponents
         .filter((c) => c.name || c.content || c.cas)
-        .map(({ name, content, cas, legal_status, regulation_selections, legal_basis, regulations }) => ({
+        .map(({ name, content, cas, legal_status, regulation_selections, regulation_evidence, legal_basis, regulations }) => ({
           regulation_selections: regulation_selections || {},
+          regulation_evidence: regulation_evidence || {},
           name: name.trim(),
           content: content.trim(),
           cas: cas.trim(),
@@ -2395,7 +2396,7 @@
       name = $("editMaterialName").value.trim(),
       note = $("editMaterialNote").value.trim(),
       file = $("editPdfInput").files?.[0],
-      enteredComponents = state.editComponents.filter((c)=>c.name||c.content||c.cas).map(({name,content,cas,legal_status,regulation_selections,legal_basis,regulations,undisclosed,source_values})=>({regulation_selections:regulation_selections || {},undisclosed,source_values,name:name.trim(),content:content.trim(),cas:cas.trim(),legal_status:legal_status||"",legal_basis:(legal_basis||"").trim(),...(regulations&&Object.keys(regulations).length?{regulations}:{})}));
+      enteredComponents = state.editComponents.filter((c)=>c.name||c.content||c.cas).map(({name,content,cas,legal_status,regulation_selections,regulation_evidence,legal_basis,regulations,undisclosed,source_values})=>({regulation_evidence:regulation_evidence || {},regulation_selections:regulation_selections || {},undisclosed,source_values,name:name.trim(),content:content.trim(),cas:cas.trim(),legal_status:legal_status||"",legal_basis:(legal_basis||"").trim(),...(regulations&&Object.keys(regulations).length?{regulations}:{})}));
     let components = legalEngine.normalizeComponents(enteredComponents),
       regulations = {
         chemical:selectedValues("editRegChemical"), osh:selectedValues("editRegOsh"),
@@ -4220,10 +4221,10 @@
   $("homeLogo").addEventListener("click", goHome);
   async function init() {
     try {
-      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.40');
+      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.41');
       regulationDisplay = await import('./vendor/regulation-display.mjs?v=VER13_rev.28');
       dangerousLaw=await import('./vendor/dangerous-quantity.mjs?v=VER13_rev.35');
-      regulatoryModule=await import('./vendor/regulatory-model.mjs?v=VER13_rev.40');
+      regulatoryModule=await import('./vendor/regulatory-model.mjs?v=VER13_rev.41');
       factoryScope=await import('./vendor/factory-scope.mjs?v=VER13_rev.34');
       refreshLegalRules();
     } catch (error) { console.error('법적기준 모듈 로드 실패', error); }

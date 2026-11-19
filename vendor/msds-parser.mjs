@@ -524,6 +524,16 @@ export function findRegulations(data) {
   return { chemical: [...new Set(chemical)], osh: [...new Set(osh)], ...completeDangerousFromMsds(dangerous,data.pages.flatMap(page=>page.lines.map(line=>line.text)).join('\n')) };
 }
 
+export function findSulfuricSpecialEvidence(data) {
+  const section=findSection15Text(data);
+  for(const match of section.matchAll(/특별관리(?:대상)?물질([\s\S]*?)(?=[○●]|$)/g)) {
+    const excerpt=match[0].slice(0,1200);
+    if(!/해당\s*됨\s*\([^)]*황산/.test(excerpt))continue;
+    const page=data.pages.find(p=>p.lines.map(l=>l.text).join(' ').includes('특별관리') && /해당\s*됨\s*\([^)]*황산/.test(p.lines.map(l=>l.text).join(' ')));
+    return {cas:'7664-93-9',label:'특별관리물질',status:'applicable',source:'MSDS 제15항',page:page?.pageNumber || null,excerpt:excerpt.trim()};
+  }
+  return null;
+}
 export function parsePh(text) {
   // Only the physical-properties section contains the product pH.
   const section = String(text || '').match(/(?:9\s*[.．]\s*물리[\s\S]*?)(?=10\s*[.．]\s*안정|$)/)?.[0] || '';
@@ -531,7 +541,8 @@ export function parsePh(text) {
   return value ? value.replace(/[〈＜]/g,'<').replace(/[〉＞]/g,'>').replace(/\s+/g,'') : null;
 }
 export function parseMsds(data) {
-  const components = normalizeComponents(findComponents(data));
+  const sulfuricEvidence=findSulfuricSpecialEvidence(data);
+  const components = normalizeComponents(findComponents(data)).map(c=>sulfuricEvidence && c.cas==='7664-93-9' ? {...c,regulation_evidence:{...(c.regulation_evidence || {}),'특별관리물질':sulfuricEvidence}} : c);
   const noListedComponents = /유해한\s*성분\s*없음|분류기준에\s*해당하는\s*화학물질을\s*포함하지\s*않음/i.test(data.text);
   const reviewRequired = components.some(
     (row) => !undisclosedComponent(row) && (

@@ -127,8 +127,15 @@ export function assess(components, rules, { on = todayKorea(), physicalState = '
     const current=applicableRules.map(criterion=>{
       let status=compare(range,Number(criterion.threshold));
       if(status==='review' && range)status='applicable';
-      if(criterion.detail?.includes('pH 2.0') && status==='applicable')status=sulfuricPhStatus(ph);
-      return {...criterion,status,componentIndex,content:component.content || '',component_name:component.name || ''};
+      let sourceEvidence=null;
+      if(criterion.detail?.includes('pH 2.0') && status==='applicable') {
+        status=sulfuricPhStatus(ph);
+        const evidence=component.regulation_evidence?.[criterion.label];
+        if(status==='review' && criterion.cas==='7664-93-9' && criterion.label==='특별관리물질' && evidence?.cas===criterion.cas && evidence.status==='applicable' && evidence.source==='MSDS 제15항' && /해당\s*됨\s*\([^)]*황산/.test(evidence.excerpt || '')) {
+          status='applicable'; sourceEvidence=evidence;
+        }
+      }
+      return {...criterion,status,...(sourceEvidence?{source_evidence:sourceEvidence}:{}),componentIndex,content:component.content || '',component_name:component.name || ''};
     });
     decisions.push(...current);
     for(const [label,selected] of Object.entries(component.regulation_selections || {})) {
