@@ -1,5 +1,5 @@
 import {completeDangerous,dangerousReviewReasons,completeDangerousFromMsds} from './dangerous-quantity.mjs?v=VER13_rev.35';
-import { normalizeComponents, undisclosedComponent, validCas } from './material-values.mjs?v=VER13_rev.23';
+import { normalizeComponents, undisclosedComponent, excludedComponent, validCas } from './material-values.mjs?v=VER13_rev.42';
 const CAS_RE = /\b\d{2,7}\s*-\s*\d{2}\s*-\s*\d\b/;
 const PRODUCT_LABEL_RE = /(?:^|\s)(?:가\s*[.)]?\s*)?(?:제품명|제품의\s*명칭|화학품\s*명칭|상품명|product\s*(?:name|identifier))\s*[:：]?/i;
 const CHEMICAL_HEADER_RE = /화학\s*물질\s*명|화학명(?:\s*또는\s*일반명)?|물질명|구성\s*성분(?:의\s*명칭)?|성분명|chemical\s*name|ingredient/i;
@@ -107,7 +107,7 @@ function normalizeCas(value) {
       .reduce((total, digit, index) => total + Number(digit) * (index + 1), 0);
     if (sum % 10 === check) return normalized;
   }
-  return /영업비밀|영업기밀|기밀|trade[\s-]*secret|proprietary|confidential|비대상물질|규제되지 않는 성분|T-\d{4}-\d{5}/i.test(value) ? "영업비밀" : "";
+  return /영업\s*[비기]밀|기밀|trade[\s-]*secret|proprietary|confidential|비대상물질|규제되지 않는 성분|T-\d{4}-\d{5}/i.test(value) ? "영업비밀" : "";
 }
 
 function groupLines(items) {
@@ -545,7 +545,7 @@ export function parseMsds(data) {
   const components = normalizeComponents(findComponents(data)).map(c=>sulfuricEvidence && c.cas==='7664-93-9' ? {...c,regulation_evidence:{...(c.regulation_evidence || {}),'특별관리물질':sulfuricEvidence}} : c);
   const noListedComponents = /유해한\s*성분\s*없음|분류기준에\s*해당하는\s*화학물질을\s*포함하지\s*않음/i.test(data.text);
   const reviewRequired = components.some(
-    (row) => !undisclosedComponent(row) && (
+    (row) => !excludedComponent(row) && (
       !row.name ||
       !row.content ||
       (!row.cas && !/^(?:additive|첨가제|영업비밀|영업기밀|기밀|filler\s*other|규제되지 않는 성분|기타\s*\(영업기밀\))/i.test(row.name || '')) ||

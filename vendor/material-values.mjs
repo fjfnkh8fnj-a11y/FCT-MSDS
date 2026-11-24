@@ -1,8 +1,10 @@
 // Keep source rows separate even when their displayed CAS values are identical.
 const secret = /영업\s*[비기]밀|기밀|trade[\s-]*secret|proprietary|confidential|비공개|비대상물질|규제되지 않는 성분|T-\d{4}-\d{5}/i;
 export const undisclosedComponent = c => Boolean(c?.undisclosed) || secret.test([c?.name,c?.cas,c?.content].join(' '));
-export const additiveWithoutCas = c => /^additives?$/i.test(String(c?.name || '').trim()) && !validCas(c?.cas);
-export const excludedComponent = c => undisclosedComponent(c) || additiveWithoutCas(c);
+const unassignedCas = value => /^(?:[-–—]+|자료\s*없음|정보\s*없음|없음|미부여|N\/?A|not\s+(?:available|assigned|applicable))?$/i.test(String(value || '').trim());
+export const additiveWithoutCas = c => /^(?:additives?|첨가\s*제)(?:\s*\(\s*(?:additives?|첨가\s*제)\s*\))?$/i.test(String(c?.name || '').trim().replace(/（/g,'(').replace(/）/g,')')) && unassignedCas(c?.cas);
+export const fillerWithoutCas = c => /^filler\s+other$/i.test(String(c?.name || '').trim()) && unassignedCas(c?.cas);
+export const excludedComponent = c => undisclosedComponent(c) || additiveWithoutCas(c) || fillerWithoutCas(c);
 export function normalizeComponents(rows = []) {
   return rows.map(c => {
     const source=c.source_values || {};
@@ -13,7 +15,7 @@ export function normalizeComponents(rows = []) {
     if (undisclosedComponent(restored)) return {...restored, undisclosed:true,
       source_values:c.source_values || {name:c.name || '',cas:c.cas || '',content:c.content || ''},
       name:restored.name || '-',cas:restored.cas || '-',content:restored.content || '-',legal_status:'excluded',regulations:{}};
-    if(additiveWithoutCas(restored)) return {...restored,cas:'-',cas_not_assigned:true,legal_status:'excluded',exclusion_reason:'첨가제 총칭 · 원문 CAS 미부여',regulations:{}};
+    if(additiveWithoutCas(restored) || fillerWithoutCas(restored)) return {...restored,cas:'-',cas_not_assigned:true,legal_status:'excluded',exclusion_reason:additiveWithoutCas(restored)?'첨가제 총칭 · 원문 CAS 미부여':'기타 충전재 총칭 · 원문 CAS 미부여',regulations:{}};
     return restored;
   });
 }

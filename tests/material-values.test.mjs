@@ -27,7 +27,7 @@ test('confirmed fields survive load and new extraction without mutating the snap
 test('unknown CAS rules are not missing data; missing CAS remains actionable',()=>{
  const d={material_name:'water',components:[{name:'water',cas:'7732-18-5',content:'100'}],regulations:{physical_state:'액체'}};
  assert.deepEqual(requiredFields(d),[]);
- assert(requiredFields({...d,components:[{name:'Filler Other',content:'1~5%'}]}).includes('1행 CAS No.'));
+ assert(requiredFields({...d,components:[{name:'확인되지 않은 개별 성분',content:'1~5%'}]}).includes('1행 CAS No.'));
  assert.deepEqual(requiredFields({...d,components:normalizeComponents([{name:'영업비밀'}])}),[]);
 });
 test('inclusive and exclusive concentration boundaries and Korean suffixes',()=>{
