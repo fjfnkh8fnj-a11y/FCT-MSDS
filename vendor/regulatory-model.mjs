@@ -32,6 +32,16 @@ export function matchesClassificationSearch(group, product, query='') {
   if(!q || norm(group.title).includes(q))return true;
   return norm([product.doc.material_name,...product.components.flatMap(c=>[c.component.name,c.component.cas])].join(' ')).includes(q);
 }
+function chemicalTitles(decision) {
+    const quantities=decision.regulated_quantities || [];
+    const m=String(decision.detail || '').match(/(급성|만성|생태|사고대비)\s*최하위\s*([\d.,]+)\s*\/\s*하위\s*([\d.,]+)\s*\/\s*상위\s*([\d.,]+)/);
+    const values=quantities.length?quantities:m?[{lowest_tons:m[2],lower_tons:m[3],upper_tons:m[4]}]:[null];
+    return values.map(quantity=>
+      decision.label+' · '+(quantity?(quantity.physical_state?quantity.physical_state+' · ':'')+'최하위 '+quantity.lowest_tons+'t / 하위 '+quantity.lower_tons+'t / 상위 '+quantity.upper_tons+'t':'규정수량 확인 필요'));
+}
+function matchesGroup(decision,group) {
+  return decision.group===group.kind && (group.kind==='chemical' ? chemicalTitles(decision).includes(group.title) : decision.label===group.title);
+}
 export function classificationGroups(model) {
   const groups=new Map();
   const add=(key,title,kind,product,ingredient=null)=>{
@@ -47,12 +57,7 @@ export function classificationGroups(model) {
     add('osh:'+decision.label,decision.label,'osh',model.products.find(p=>p.doc.id===entry.doc.id),ingredient);
   }
   for(const ingredient of model.ingredients)for(const entry of ingredient.entries)for(const decision of entry.applied.filter(d=>d.group==='chemical')) {
-    if(decision.label!=='사고대비물질'&&entry.applied.some(d=>d.label==='사고대비물질'))continue;
-    const quantities=decision.regulated_quantities || [];
-    const m=String(decision.detail || '').match(/(급성|만성|생태|사고대비)\s*최하위\s*([\d.,]+)\s*\/\s*하위\s*([\d.,]+)\s*\/\s*상위\s*([\d.,]+)/);
-    const values=quantities.length?quantities:m?[{lowest_tons:m[2],lower_tons:m[3],upper_tons:m[4]}]:[null];
-    for(const quantity of values){
-      const title=decision.label+' · '+(quantity?(quantity.physical_state?quantity.physical_state+' · ':'')+'최하위 '+quantity.lowest_tons+'t / 하위 '+quantity.lower_tons+'t / 상위 '+quantity.upper_tons+'t':'규정수량 확인 필요');
+    for(const title of chemicalTitles(decision)) {
       add('chemical:'+title,title,'chemical',model.products.find(p=>p.doc.id===entry.doc.id),ingredient);
     }
   }
@@ -64,7 +69,7 @@ export function classificationIngredients(group, products=group.products) {
   const ids=new Set(products.map(p=>p.doc.id));
   const rows=new Map();
   for(const row of group.ingredients) {
-    const entries=row.entries.filter(e=>ids.has(e.doc.id)&&e.applied.some(d=>d.group===group.kind&&(group.kind!=='osh'||d.label===group.title)));
+    const entries=row.entries.filter(e=>ids.has(e.doc.id)).map(e=>({...e,applied:e.applied.filter(d=>matchesGroup(d,group))})).filter(e=>e.applied.length);
     if(!entries.length)continue;
     const hydrazine=group.title==='특별관리물질'&&['302-01-2','7803-57-8'].includes(row.cas);
     const key=hydrazine?'hydrazine-family':row.key;
