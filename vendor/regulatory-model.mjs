@@ -1,5 +1,5 @@
-import {completeDangerous,dangerousReviewReasons} from './dangerous-quantity.mjs?v=VER13_rev.43';
-import {assess, requiredFields, excludedComponent} from './legal-engine.mjs?v=VER13_rev.43';
+import {completeDangerous,dangerousReviewReasons} from './dangerous-quantity.mjs?v=VER13_rev.44';
+import {assess, requiredFields, excludedComponent} from './legal-engine.mjs?v=VER13_rev.44';
 export function regulatoryModel(documents, rules, metadata = d => ({components:d.components || [],regulations:d.regulations || {}})) {
   const ingredients=new Map();
   const products=documents.map(doc=>{
@@ -26,6 +26,12 @@ export function regulatoryModel(documents, rules, metadata = d => ({components:d
   return {products,ingredients:rows,counts};
 }
 
+export function matchesClassificationSearch(group, product, query='') {
+  const norm=value=>String(value || '').toLowerCase().replace(/\s/g,'');
+  const q=norm(query);
+  if(!q || norm(group.title).includes(q))return true;
+  return norm([product.doc.material_name,...product.components.flatMap(c=>[c.component.name,c.component.cas])].join(' ')).includes(q);
+}
 export function classificationGroups(model) {
   const groups=new Map();
   const add=(key,title,kind,product,ingredient=null)=>{
