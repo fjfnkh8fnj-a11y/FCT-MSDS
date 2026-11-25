@@ -52,12 +52,7 @@ export function completeDangerousFromMsds(values,text='') {
     return value;
   });
   const reasons=dangerousReviewReasons(enriched);
-  for(const raw of rows){
-    if(soluble && /비수용성/.test(raw))reasons.push('MSDS 제15항 비수용성 분류와 제9항 완전 용해가 불일치합니다. 원문 분류·수용성 확인 필요');
-    if(insoluble && /수용성/.test(raw)&&!/비수용성/.test(raw))reasons.push('MSDS 제15항 수용성 분류와 제9항 불용성이 불일치합니다. 원문 분류·수용성 확인 필요');
-    const n=Number(raw.match(/제\s*([1-4])\s*석유류/)?.[1]);
-    const flash=product.match(/인화점\s*[:：]?\s*(\d+(?:\.\d+)?)\s*(?:℃|°\s*C)/i);
-    if(n&&flash){const value=Number(flash[1]),low=[null,-Infinity,21,70,200][n],high=[null,21,70,200,250][n];if(value<low||value>=high)reasons.push('MSDS 제15항 제'+n+'석유류와 제9항 인화점 '+value+'℃가 법령상 범위와 불일치합니다. 원문 분류 확인 필요');}
-  }
+  // Section 15 supplies the product classification. Section 9 only fills
+  // missing water-solubility details; it does not overturn an explicit class.
   return {dangerous:completeDangerous(enriched),dangerous_review_reasons:[...new Set(reasons)]};
 }

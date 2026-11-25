@@ -1,5 +1,5 @@
-import {completeDangerous,dangerousReviewReasons,completeDangerousFromMsds} from './dangerous-quantity.mjs?v=VER13_rev.35';
-import { normalizeComponents, undisclosedComponent, excludedComponent, validCas } from './material-values.mjs?v=VER13_rev.42';
+import {completeDangerous,dangerousReviewReasons,completeDangerousFromMsds} from './dangerous-quantity.mjs?v=VER13_rev.43';
+import { normalizeComponents, undisclosedComponent, excludedComponent, validCas } from './material-values.mjs?v=VER13_rev.43';
 const CAS_RE = /\b\d{2,7}\s*-\s*\d{2}\s*-\s*\d\b/;
 const PRODUCT_LABEL_RE = /(?:^|\s)(?:가\s*[.)]?\s*)?(?:제품명|제품의\s*명칭|화학품\s*명칭|상품명|product\s*(?:name|identifier))\s*[:：]?/i;
 const CHEMICAL_HEADER_RE = /화학\s*물질\s*명|화학명(?:\s*또는\s*일반명)?|물질명|구성\s*성분(?:의\s*명칭)?|성분명|chemical\s*name|ingredient/i;
@@ -470,7 +470,7 @@ export function findComponents(data) {
 
 function findSection15Text(data) {
   const lines = data.pages.flatMap((page) => page.lines.map((line) => line.text));
-  const start = lines.findIndex((line) => /^(?:section\s*)?15\s*(?:[.．–—-]|\s)\s*(?:법적|regulatory)/i.test(clean(line)));
+  const start = lines.findIndex((line) => /^(?:section\s*)?15\s*(?:[.．–—-]|\s)\s*(?:법적|법규|regulatory|규제\s*정보|적용\s*법령)/i.test(clean(line)));
   if (start < 0) return "";
   const body = lines.slice(start + 1);
   const end = body.findIndex((line) => /^(?:section\s*)?16\s*(?:[.．–—-]|\s)/i.test(clean(line)));
@@ -517,7 +517,10 @@ export function findRegulations(data) {
     const dangerSection = end >= 0 ? tail.slice(0, end + 1) : tail.slice(0, 1200);
     const productNegative = /제품\s*[:：]?[^\n]*(?:해당되지\s*않음|규제되지\s*않음)|위험물에\s*해당되지\s*않음|위험물안전관리법[^\n]*(?:해당\s*없음|규제\s*되지\s*않음)/.test(dangerSection);
     if (!productNegative) {
-      const lines=dangerSection.split("\n").map(clean);
+      let lines=dangerSection.split("\n").map(clean);
+      // A product classification on the heading line takes priority over
+      // the subsequent per-ingredient reference list.
+      if(/위험물\s*안전관리법[^\n]*제\s*[1-6]\s*류/.test(lines[0]))lines=[lines[0]];
       dangerous=lines.flatMap((line,i)=>/제\s*[1-6]\s*류/.test(line)?[line.replace(/^[-·•\s]+/, "")+' '+lines.slice(i+1,i+3).filter(x=>/지정수량|^\(?[\d,]+\s*(?:리터|킬로그램|kg|L)/i.test(x)&&!/제\s*[1-6]\s*류/.test(x)).join(' ')]:[]);
     }
   }

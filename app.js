@@ -1912,7 +1912,7 @@
     }
     await import("./vendor/pdf-compat.mjs?v=VER13_rev.28");
       const pdfjs = await import("./vendor/pdf.min.mjs?v=VER13_rev.28");
-    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.42");
+    const parser = await import("./vendor/msds-parser.mjs?v=VER13_rev.43");
     pdfjs.GlobalWorkerOptions.workerSrc = "./vendor/pdf.worker.compat.mjs?v=VER13_rev.28";
     let pdf;
     try {
@@ -4221,10 +4221,10 @@
   $("homeLogo").addEventListener("click", goHome);
   async function init() {
     try {
-      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.42');
+      legalEngine = await import('./vendor/legal-engine.mjs?v=VER13_rev.43');
       regulationDisplay = await import('./vendor/regulation-display.mjs?v=VER13_rev.28');
-      dangerousLaw=await import('./vendor/dangerous-quantity.mjs?v=VER13_rev.35');
-      regulatoryModule=await import('./vendor/regulatory-model.mjs?v=VER13_rev.42');
+      dangerousLaw=await import('./vendor/dangerous-quantity.mjs?v=VER13_rev.43');
+      regulatoryModule=await import('./vendor/regulatory-model.mjs?v=VER13_rev.43');
       factoryScope=await import('./vendor/factory-scope.mjs?v=VER13_rev.34');
       refreshLegalRules();
     } catch (error) { console.error('법적기준 모듈 로드 실패', error); }
