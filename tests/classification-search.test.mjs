@@ -18,3 +18,19 @@ test('classification search still finds product names and CAS while empty search
  assert(search('dbp').every(g=>g.products.every(p=>p.doc.id==='dbp')));
  assert.equal(search('').length,groups.length);assert.equal(search('없는 물질').length,0);
 });
+
+test("OSH categories drill down only through qualifying ingredients and visible products",async()=>{
+ const {classificationIngredients}=await import("../vendor/regulatory-model.mjs");
+ const items=[...docs,
+  {id:"dth",material_name:"DTH-2",components:[{name:"Hydrazine hydrate",cas:"7803-57-8",content:"1%"},{name:"황산",cas:"7664-93-9",content:"0.01%"}],regulations:{ph:"<1",physical_state:"액체"}},
+  {id:"hydrazine",material_name:"Hydrazine",components:[{name:"Hydrazine",cas:"302-01-2",content:"1%"}],regulations:{physical_state:"액체"}},
+  {id:"vlc",material_name:"VL-C",components:[{name:"Sulfuric acid",cas:"7664-93-9",content:"5%"}],regulations:{ph:"1",physical_state:"액체"}}];
+ const group=classificationGroups(regulatoryModel(items,DEFAULT_RULES)).find(g=>g.title==="특별관리물질");
+ const rows=classificationIngredients(group);
+ assert.equal(rows.length,3);
+ const acid=rows.find(r=>r.name==="황산");
+ assert.deepEqual(acid.products.sort(),["acid","vlc"]); // low sulfuric in DTH is not a reason for that category
+ assert.deepEqual(rows.find(r=>r.name.includes("히드라진")).products.sort(),["dth","hydrazine"]);
+ assert.equal(classificationIngredients(group,group.products.filter(p=>p.doc.id==="vlc"))[0].products.length,1);
+ assert(rows.every(r=>r.entries.every(e=>e.applied.some(d=>d.label==="특별관리물질"&&d.status==="applicable"))));
+});

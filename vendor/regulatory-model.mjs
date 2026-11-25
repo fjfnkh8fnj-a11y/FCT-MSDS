@@ -1,5 +1,5 @@
-import {completeDangerous,dangerousReviewReasons} from './dangerous-quantity.mjs?v=VER13_rev.44';
-import {assess, requiredFields, excludedComponent} from './legal-engine.mjs?v=VER13_rev.44';
+import {completeDangerous,dangerousReviewReasons} from './dangerous-quantity.mjs?v=VER13_rev.45';
+import {assess, requiredFields, excludedComponent} from './legal-engine.mjs?v=VER13_rev.45';
 export function regulatoryModel(documents, rules, metadata = d => ({components:d.components || [],regulations:d.regulations || {}})) {
   const ingredients=new Map();
   const products=documents.map(doc=>{
@@ -43,6 +43,9 @@ export function classificationGroups(model) {
     for(const title of product.groups.dangerous)add('dangerous:'+title,title,'dangerous',product);
     for(const title of product.groups.osh)add('osh:'+title,title,'osh',product);
   }
+  for(const ingredient of model.ingredients)for(const entry of ingredient.entries)for(const decision of entry.applied.filter(d=>d.group==='osh')) {
+    add('osh:'+decision.label,decision.label,'osh',model.products.find(p=>p.doc.id===entry.doc.id),ingredient);
+  }
   for(const ingredient of model.ingredients)for(const entry of ingredient.entries)for(const decision of entry.applied.filter(d=>d.group==='chemical')) {
     if(decision.label!=='사고대비물질'&&entry.applied.some(d=>d.label==='사고대비물질'))continue;
     const quantities=decision.regulated_quantities || [];
@@ -54,4 +57,21 @@ export function classificationGroups(model) {
     }
   }
   return [...groups.values()].map(g=>({...g,products:[...g.products.values()],ingredients:[...g.ingredients.values()]})).sort((a,b)=>a.kind.localeCompare(b.kind)||a.title.localeCompare(b.title,'ko',{numeric:true}));
+}
+
+// Keep only the components responsible for this category, within the visible factory/search results.
+export function classificationIngredients(group, products=group.products) {
+  const ids=new Set(products.map(p=>p.doc.id));
+  const rows=new Map();
+  for(const row of group.ingredients) {
+    const entries=row.entries.filter(e=>ids.has(e.doc.id)&&e.applied.some(d=>d.group===group.kind&&(group.kind!=='osh'||d.label===group.title)));
+    if(!entries.length)continue;
+    const hydrazine=group.title==='특별관리물질'&&['302-01-2','7803-57-8'].includes(row.cas);
+    const key=hydrazine?'hydrazine-family':row.key;
+    const name=group.title==='특별관리물질'?({'7664-93-9':'황산','84-74-2':'DBP (디부틸 프탈레이트)'}[row.cas] || (hydrazine?'히드라진 및 그 수화물':row.name)):row.name;
+    if(!rows.has(key))rows.set(key,{...row,key:group.key+':'+key,name,entries:[],products:[],cas:row.cas});
+    const target=rows.get(key);target.entries.push(...entries);target.products=[...new Set(target.entries.map(e=>e.doc.id))];
+    target.cas=[...new Set(target.entries.map(e=>e.component.cas))].join(', ');
+  }
+  return [...rows.values()].sort((a,b)=>a.name.localeCompare(b.name,'ko'));
 }
