@@ -1142,16 +1142,18 @@
     const criteria=[...new Set(decisions.map(d=>'함량 '+d.threshold+'% 이상'+(d.detail?' · '+d.detail:'')))];
     const sources=[...new Set(decisions.map(d=>d.source).filter(Boolean))];
     const users=[...new Set(row.entries.map(e=>e.doc.id))];
-    const detail=users.map(id=>{
-      const product=model.products.find(p=>p.doc.id===id);
+    const products=users.map(id=>model.products.find(p=>p.doc.id===id)).sort((a,b)=>a.doc.material_name.localeCompare(b.doc.material_name,'ko'));
+    const names=products.map(p=>p.doc.material_name).join(' · ');
+    const detail=open?products.map(product=>{
+      const id=product.doc.id;
       const evidence=row.entries.filter(e=>e.doc.id===id).map(e=>{
         const d=e.applied.find(d=>d.group===group.kind&&d.label===group.title);
         const ph=d.detail?.includes('pH 2.0')?' · 제품 pH '+(product.meta.regulations.ph || '미기재'):'';
-        return '<div class="reg-classification-basis"><b>해당 이유</b> · '+esc(e.component.name)+' 함량 '+esc(e.component.content)+esc(ph)+' → '+esc(group.title)+' 해당'+(d.source_evidence?'<small>판정 근거: '+esc(d.source_evidence.source)+' · '+esc(d.source_evidence.excerpt)+'</small>':'')+'</div>';
+        return '<div class="reg-classification-basis"><b>'+esc(product.doc.material_name)+'</b> · '+esc(e.component.name)+' '+esc(e.component.content)+' 함유'+esc(ph)+' → '+esc(group.title)+' 해당'+(d.source_evidence?'<small>판정 근거: '+esc(d.source_evidence.source)+' · '+esc(d.source_evidence.excerpt)+'</small>':'')+'</div>';
       }).join('');
       return '<div class="reg-classification-product">'+evidence+regulatoryProductHtml(product)+'</div>';
-    }).join('');
-    return '<article class="reg-product"><div class="reg-product-head"><div><button type="button" class="reg-name-button" data-reg-ingredient="'+esc(row.key)+'" aria-expanded="'+open+'">'+esc(row.name)+'</button><small>CAS '+esc(row.cas)+'</small></div><div>'+users.length+'개 제품</div><div><button type="button" class="btn btn-outline btn-small" data-reg-ingredient="'+esc(row.key)+'">'+(open?'접기':'제품·PDF 보기')+'</button></div></div><div class="reg-classification-basis"><b>해당 기준</b> · '+esc(criteria.join(' / '))+'<small>'+esc(sources.join(' · '))+'</small></div>'+(open?'<div class="reg-ingredient-products">'+detail+'</div>':'')+'</article>';
+    }).join(''):'';
+    return '<article class="reg-product"><div class="reg-product-head"><div><button type="button" class="reg-name-button" data-reg-ingredient="'+esc(row.key)+'" aria-expanded="'+open+'">'+esc(row.name)+'</button><small>CAS '+esc(row.cas)+'</small></div><div>'+users.length+'개 제품<small>해당 제품 · '+esc(names)+'</small></div><div><button type="button" class="btn btn-outline btn-small" data-reg-ingredient="'+esc(row.key)+'">'+(open?'접기':'제품·PDF 보기')+'</button></div></div><div class="reg-classification-basis"><b>해당 기준</b> · '+esc(criteria.join(' / '))+'<small>'+esc(sources.join(' · '))+'</small></div>'+(open?'<div class="reg-ingredient-products">'+detail+'</div>':'')+'</article>';
   }
   function renderRegulatoryDashboard() {
     if(!regulatoryModule)return;
