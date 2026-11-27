@@ -8,19 +8,13 @@ let lastRequest;
 let draftQuestions=[];
 let draftSourceKey='';
 let draftOrigin='';
-let generationPromise=null;
 let draftEdited=false;
-const quizEndpoints=[
- 'https://br-misty-bar-azvo7ikx-fctquizv2.compute.c-3.ap-southeast-1.aws.neon.tech/',
- 'https://br-misty-bar-azvo7ikx-fctquizgen.compute.c-3.ap-southeast-1.aws.neon.tech/'
-];
 const sourceKey=form=>JSON.stringify([String(form.elements.title?.value||'').trim(),String(form.elements.description?.value||'').trim()]);
 function draftSummary(form){
  const host=$('registrationQuiz'),hint=$('registrationQuizHelp');
  if(!host||!hint)return;
  const old=draftQuestions.length>0&&sourceKey(form)!==draftSourceKey;
- host.textContent=generationPromise?'교육 주제에 맞는 문제를 준비하고 있습니다…'
-  :draftQuestions.length?('평가문제 '+draftQuestions.length+'개 · '+draftOrigin+(old?' · 교육내용 변경됨':''))
+ host.textContent=draftQuestions.length?('평가문제 '+draftQuestions.length+'개 · '+draftOrigin+(old?' · 교육내용 변경됨':''))
    :'교육명만 입력하면 해당 주제에 맞는 기본 평가문제 5개를 구성합니다.';
  hint.textContent=draftQuestions.length
   ?(old?'교육 주제가 변경되었습니다. 필요한 경우 문제를 다시 생성해 주세요.':'질문·선택지·정답·해설을 수정한 뒤 교육을 등록할 수 있습니다.')
@@ -175,7 +169,6 @@ export async function registerCourse(form){
  const departments=v('target')==='departments'?fd.getAll('target_departments'):null;
  if(departments?.length===0)throw Error('배정할 부서를 하나 이상 선택해 주세요.');
  const video=videoFromForm(form,'교육영상');
- if(generationPromise)await generationPromise;
  if(!draftQuestions.length)await generateRegistrationQuestions(form);
  const questions=validatedQuestions();
  const args={p_course:course,p_departments:departments,p_video:video,p_questions:questions};
@@ -188,7 +181,7 @@ export async function registerCourse(form){
  try{await loadData();}
  catch{throw Error('교육은 등록되었습니다. 목록을 불러오지 못했습니다. 같은 내용으로 다시 눌러 결과를 확인해 주세요.');}
  notice('교육 공개 및 '+result.assigned+'명 배정이 완료되었습니다. 평가문제 '+questions.length+'개가 등록되었습니다.');
- draftQuestions=[];draftSourceKey='';draftOrigin='';draftEdited=false;generationPromise=null;
+ draftQuestions=[];draftSourceKey='';draftOrigin='';draftEdited=false;
  return 'editor';
 }
 
