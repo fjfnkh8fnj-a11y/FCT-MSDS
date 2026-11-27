@@ -40,7 +40,7 @@ export default {
   if(!/^Bearer [A-Za-z0-9._-]+$/.test(token))return response({error:'관리자 인증이 필요합니다.'},401);
   try{
    // Verify the signed user JWT and administrator role using existing RLS.
-   const api=process.env.NEON_DATA_API_URL;
+   const api='https://ep-winter-bonus-azfs5ym3.apirest.c-3.ap-southeast-1.aws.neon.tech/fct_edu_app/rest/v1';
    if(!api)throw Error('서버 데이터 API가 구성되지 않았습니다.');
    const authRes=await fetch(api.replace(/\/$/,'')+'/rpc/edu_is_admin',{
     method:'POST',headers:{authorization:token,'content-type':'application/json'},body:'{}'
