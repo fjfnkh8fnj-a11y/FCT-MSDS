@@ -1,0 +1,82 @@
+.course-workspace-toolbar{display:flex;align-items:end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.course-workspace-toolbar label{width:min(100%,340px)}
+.course-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.course-tabs button{flex:0 1 auto}
+.course-list-item{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.course-list-item h3,.course-workspace-toolbar select{overflow-wrap:anywhere}
+.course-list-item p{margin:0}
+.new-course summary{cursor:pointer;font-weight:800;color:var(--teal)}
+.new-course[open] summary{margin-bottom:18px}
+@media(max-width:650px){
+ .course-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+ .course-tabs button{min-height:40px;padding:8px 6px;font-size:13px}
+ .course-list-item .actions{width:100%}
+}
+/* rev.24 — 교육과정 목록 전용 정렬. 기존 로그인·직원 화면의 스타일은 유지 */
+.course-list-item{
+ display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;
+ gap:18px;padding:18px 20px;
+}
+.course-list-info{min-width:0;overflow-wrap:anywhere}
+.course-list-info .row{gap:8px}
+.course-list-info h3{font-size:16px;line-height:1.45;margin:9px 0 5px;letter-spacing:-.02em}
+.course-list-info p{margin:0;font-size:12px}
+.course-list-actions{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+.course-list-actions button{white-space:nowrap;flex:none;min-width:72px}
+button.course-delete{border:1px solid #e9cfd1;background:#fff;color:#af434b;min-height:31px;font-size:12px}
+button.course-delete:hover{background:#fff2f3;border-color:#d49a9e;filter:none}
+button.course-delete:focus-visible{outline:3px solid #ca9d9f;outline-offset:2px}
+@media(max-width:900px){
+ .course-list-item{grid-template-columns:minmax(0,1fr);gap:13px}
+ .course-list-actions{justify-content:flex-start}
+}
+@media(max-width:650px){
+ .course-list-item{padding:16px;gap:13px}
+ .course-list-info h3{font-size:15px}
+ .course-list-actions{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:7px;width:100%}
+ .course-list-actions button{min-width:0;min-height:38px;font-size:12px;padding:8px 7px;width:100%;white-space:normal}
+ .course-list-actions button.course-delete{min-width:55px}
+}
+
+/* rev.25 — 브라우저 prompt/confirm 대신 교육관리 내부 확인창 */
+#dialog{max-height:min(86dvh,860px);overflow-y:auto}
+.delete-warning{margin:14px 0 18px;line-height:1.7;border:1px solid #e8d0d2;background:#fff8f8;color:#7f3740}
+#deleteCourseForm,#archivePurgeConfirm{margin-top:15px;gap:16px}
+#deleteCourseForm input,#archivePurgeConfirm input{min-height:45px}
+.delete-course-actions{justify-content:flex-end;gap:9px}
+.delete-course-actions button{min-height:42px}
+.delete-course-actions button.danger{background:#ad303e;color:#fff;border-color:#ad303e}
+.delete-course-actions button.danger:hover{background:#921e2c}
+@media(max-width:650px){
+ #dialog{width:min(96vw,540px);max-height:85dvh}
+ #dialogBody{padding:19px}
+ .delete-course-actions{display:grid;grid-template-columns:1fr 1.2fr}
+ .delete-course-actions button{min-width:0;width:100%}
+}
+
+/* rev.26 — AI 교육내용 기반 평가문제 편집 화면 */
+.quiz-editor-panel{border:1px solid #d4e0ed;background:#fafdff;border-radius:13px;padding:18px;margin:8px 0 18px}
+.quiz-editor-top{gap:12px;align-items:flex-start}
+.quiz-editor-top h3{font-size:16px;margin:0 0 7px}
+.quiz-editor-top .note{margin:0}
+#registrationQuizHelp{margin:7px 0 12px}
+.quiz-edit-card{padding:16px;margin-bottom:12px;background:#fff;border:1px solid #dfe6f0;border-radius:12px;display:grid;gap:12px}
+.quiz-edit-card>.between{margin-bottom:2px}
+.quiz-edit-card strong{font-size:14px;color:#23466f}
+.quiz-edit-card label{font-size:12px}
+.quiz-edit-card textarea{min-height:56px}
+.quiz-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.quiz-edit-bottom{display:grid;grid-template-columns:minmax(110px,.35fr) minmax(0,1fr);gap:12px}
+#registrationAddQuestion{width:100%;border-style:dashed;min-height:42px}
+.quiz-existing-row{gap:10px}
+.quiz-existing-info{min-width:0;flex:1;overflow-wrap:anywhere}
+.quiz-existing-info .small{margin-top:4px}
+@media(max-width:650px){
+ .quiz-editor-panel{padding:12px;margin-inline:0}
+ .quiz-editor-top{align-items:stretch}
+ .quiz-editor-top button{width:100%}
+ .quiz-edit-card{padding:12px}
+ .quiz-choice-grid,.quiz-edit-bottom{grid-template-columns:minmax(0,1fr)}
+ .quiz-existing-row .actions{width:100%}
+ .quiz-existing-row .actions button{min-width:70px}
+}
