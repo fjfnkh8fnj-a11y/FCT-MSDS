@@ -258,9 +258,9 @@ export async function adminClick(btn){
    notice('수료이력이 있는 교육과정은 삭제할 수 없습니다. 수료자료와 전자서명을 보호하기 위해 삭제가 제한됩니다.',true);
    return 'courses';
   }
-  const message='교육과정: '+course.title+'\\n수강 배정: '+assigned.length+'명\\n\\n이 교육과정과 연결된 미수료 배정, 영상, 자료, 평가문제가 삭제됩니다. 복구할 수 없습니다.\\n\\n삭제하시겠습니까?';
+  const message='교육과정: '+course.title+'\n수강 배정: '+assigned.length+'명\n\n이 교육과정과 연결된 미수료 배정, 영상, 자료, 평가문제가 삭제됩니다. 복구할 수 없습니다.\n\n삭제하시겠습니까?';
   if(!confirm(message))return null;
-  const name=prompt('삭제 확인을 위해 교육명을 정확히 입력해 주세요.\\n'+course.title);
+  const name=prompt('삭제 확인을 위해 교육명을 정확히 입력해 주세요.\n'+course.title);
   if(name===null)return null;
   if(name!==course.title)throw Error('교육명이 일치하지 않아 삭제하지 않았습니다.');
   const result=check(await db.rpc('edu_delete_course',{p_course_id:course.id,p_confirm_title:name}));
