@@ -2,6 +2,7 @@
 -- - 공개된 교육 중 마감일이 지나지 않은 교육만 선택
 -- - 공장/부서 범위 준수, 중복배정 방지
 -- - 등록 순서와 관계없이 직원/교육 동시 등록 경쟁상황 직렬화
+-- - 배정 대상자가 0명이어도 교육 등록 허용, 이후 등록하는 직원 자동 배정
 -- - 과거 수료 이력 미변경
 -- - 기존 비배정 직원 중 교육 등록 이후 추가된 직원만 1회 보정
 
@@ -102,9 +103,8 @@ BEGIN
   AND (v_departments IS NULL OR s.department=ANY(v_departments))
  ON CONFLICT (course_id,staff_id) DO NOTHING;
  GET DIAGNOSTICS v_count=ROW_COUNT;
- IF v_count=0 THEN
-  RAISE EXCEPTION '선택한 대상에 재직 중인 직원이 없습니다. 공장과 부서를 확인해 주세요.';
- END IF;
+ -- Do not reject a published course just because no eligible employees exist yet.
+ -- Staff created later will be assigned automatically by trg_edu_new_staff.
  RETURN jsonb_build_object('id',p_request_id,'assigned',v_count);
 END
 $function$;
